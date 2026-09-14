@@ -140,7 +140,7 @@ table input[type="date"]:hover { border-color: var(--line); background: var(--su
   .no-print { display: none !important; }
   .shell { background: #fff; }
   .print-area { padding: 12px; }
-  .photo-grid { gap: 10mm 8mm; }
+  .photo-grid, .grid-columns-head { grid-template-columns: 1fr 1fr !important; gap: 10mm 8mm; }
   .photo-card { border-color: #999; break-inside: avoid; page-break-inside: avoid; }
   .photo-frame { break-inside: avoid; }
 }
