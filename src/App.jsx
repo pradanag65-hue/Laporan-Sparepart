@@ -544,6 +544,10 @@ export default function App() {
                 <h3>LAMPIRAN FOTO SPARE PART BEKAS</h3>
                 <p>{formatTanggalID(lampiranDate)}</p>
               </div>
+              <div className="grid-columns-head">
+                <span>Barang (kondisi)</span>
+                <span>Lampiran (pemasangan)</span>
+              </div>
               <div className="photo-grid">
                 {lampiranEntries.map((e) => (
                   <Fragment key={e.id}>
