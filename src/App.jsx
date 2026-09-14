@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo, useCallback, Fragment } from "react";
+import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import {
   Plus, Trash2, Upload, Download, Printer, Image as ImageIcon,
   FileSpreadsheet, Loader2, Camera, X, ClipboardList, ScanLine,
@@ -548,12 +548,12 @@ export default function App() {
                 <span>Barang (kondisi)</span>
                 <span>Lampiran (pemasangan)</span>
               </div>
-              <div className="photo-grid">
+              <div className="photo-rows">
                 {lampiranEntries.map((e) => (
-                  <Fragment key={e.id}>
+                  <div className="photo-row" key={e.id}>
                     <PhotoCard entry={e} slot="kondisi" title="(BARU DAN BEKAS)" onPick={(f) => attachPhoto(e.id, "kondisi", f)} />
                     <PhotoCard entry={e} slot="pasang" title="(PENGGANTIAN)" onPick={(f) => attachPhoto(e.id, "pasang", f)} />
-                  </Fragment>
+                  </div>
                 ))}
               </div>
             </div>
