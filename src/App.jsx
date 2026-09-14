@@ -99,8 +99,8 @@ const emptyDraft = () => ({
 });
 
 export default function App() {
-  const [apiUrlInput, setApiUrlInput] = useState(getApiUrl());
-  const [connected, setConnected] = useState(!!getApiUrl());
+  const [apiUrlInput, setApiUrlInput] = useState(getApiUrl().includes("PASTE_URL") ? "" : getApiUrl());
+  const [connected, setConnected] = useState(!!getApiUrl() && !getApiUrl().includes("PASTE_URL"));
   const [entries, setEntries] = useState([]);
   const [loaded, setLoaded] = useState(false);
   const [loadError, setLoadError] = useState("");
