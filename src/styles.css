@@ -142,12 +142,13 @@ table input[type="date"]:hover { border-color: var(--line); background: var(--su
   .no-print { display: none !important; }
   .shell { background: #fff; }
   .print-area { padding: 12px; }
+  .photo-row, .grid-columns-head { flex-direction: row !important; }
   .photo-row { break-inside: avoid; page-break-inside: avoid; }
   .photo-card { border-color: #999; break-inside: avoid; page-break-inside: avoid; }
   .photo-frame { break-inside: avoid; }
 }
 
-@media (max-width: 720px) {
+@media screen and (max-width: 720px) {
   .form-grid { grid-template-columns: repeat(2, 1fr); }
   .form-grid .col-2 { grid-column: span 2; }
   .photo-row { flex-direction: column; }
