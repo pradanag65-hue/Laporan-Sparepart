@@ -200,6 +200,12 @@ export default function App() {
     }
   }
 
+  function confirmDeleteEntry(id, namaPart) {
+    const label = namaPart ? `"${namaPart}"` : "baris ini";
+    const yakin = window.confirm(`Hapus data ${label}? Foto yang sudah diunggah untuk baris ini juga akan ikut terhapus. Tindakan ini tidak bisa dibatalkan.`);
+    if (yakin) deleteEntry(id);
+  }
+
   function updateFieldLocal(id, field, value) {
     setEntries((prev) => prev.map((e) => (e.id === id ? { ...e, [field]: value } : e)));
   }
@@ -502,7 +508,7 @@ export default function App() {
                           </div>
                         </td>
                         <td>
-                          <button className="icon-btn danger" onClick={() => deleteEntry(e.id)} title="Hapus baris"><Trash2 size={15} /></button>
+                          <button className="icon-btn danger" onClick={() => confirmDeleteEntry(e.id, e.namaPart)} title="Hapus baris"><Trash2 size={15} /></button>
                         </td>
                       </tr>
                     ))}
