@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import {
   Plus, Trash2, Upload, Download, Printer, Image as ImageIcon,
   FileSpreadsheet, Loader2, Camera, X, ClipboardList, ScanLine,
-  RotateCcw, ChevronDown, Settings, Link2, CheckCircle2,
+  RotateCcw, ChevronDown, Settings, Link2, CheckCircle2, Images,
 } from "lucide-react";
 import * as XLSX from "xlsx";
 import Papa from "papaparse";
@@ -149,6 +149,11 @@ export default function App() {
     const set = new Set(entries.map((e) => e.tanggal));
     return Array.from(set).sort((a, b) => (a < b ? 1 : -1));
   }, [entries]);
+
+  const totalFoto = useMemo(
+    () => entries.reduce((n, e) => n + (e.fotoKondisi ? 1 : 0) + (e.fotoPasang ? 1 : 0), 0),
+    [entries]
+  );
 
   useEffect(() => {
     if (!lampiranDate && tanggalList.length) setLampiranDate(tanggalList[0]);
@@ -412,12 +417,20 @@ export default function App() {
             </button>
           ))}
         </nav>
+        <div className="stats-row no-print">
+          <div className="stat-pill"><strong>{entries.length}</strong><span>Total data</span></div>
+          <div className="stat-pill"><strong>{tanggalList.length}</strong><span>Tanggal tercatat</span></div>
+          <div className="stat-pill"><strong>{totalFoto}</strong><span>Foto terlampir</span></div>
+        </div>
       </header>
 
       {tab === "input" && (
         <main className="page no-print">
           <section className="card form-card">
-            <h2>Tambah data harian</h2>
+            <div className="card-title-row">
+              <div className="card-icon gold"><Plus size={16} /></div>
+              <h2>Tambah data harian</h2>
+            </div>
             <div className="form-grid">
               <label><span>Tanggal</span>
                 <input type="date" value={draft.tanggal} onChange={(e) => setDraft((d) => ({ ...d, tanggal: e.target.value }))} />
@@ -448,7 +461,10 @@ export default function App() {
 
           <section className="card">
             <div className="card-head">
-              <h2>Rekap tersimpan</h2>
+              <div className="card-title-row">
+                <div className="card-icon"><ClipboardList size={16} /></div>
+                <h2>Rekap tersimpan</h2>
+              </div>
               <span className="count-pill">{entries.length} baris</span>
             </div>
             {!entries.length ? (
@@ -524,7 +540,10 @@ export default function App() {
         <main className="page">
           <section className="card no-print">
             <div className="card-head wrap">
-              <h2>Lampiran foto per tanggal</h2>
+              <div className="card-title-row">
+                <div className="card-icon rust"><Images size={16} /></div>
+                <h2>Lampiran foto per tanggal</h2>
+              </div>
               <div className="lampiran-controls">
                 <div className="select-wrap">
                   <select value={lampiranDate} onChange={(e) => setLampiranDate(e.target.value)}>
@@ -570,7 +589,10 @@ export default function App() {
       {tab === "io" && (
         <main className="page no-print">
           <section className="card">
-            <h2>Impor data rekap</h2>
+            <div className="card-title-row">
+              <div className="card-icon gold"><Upload size={16} /></div>
+              <h2>Impor data rekap</h2>
+            </div>
             <p className="hint">
               Terima file .csv atau .xlsx dengan kolom seperti rekap harian (LB/Hari, Tanggal, Nama Spare Part,
               Kode Barang, Jumlah, Satuan, Mekanik). Nama kolom tidak harus persis sama. Setiap baris langsung
@@ -582,7 +604,10 @@ export default function App() {
           </section>
 
           <section className="card">
-            <h2>Ekspor</h2>
+            <div className="card-title-row">
+              <div className="card-icon"><Download size={16} /></div>
+              <h2>Ekspor</h2>
+            </div>
             <p className="hint">
               Unduh seluruh rekap sebagai spreadsheet (data selalu sinkron dengan Google Sheet sumbernya), atau
               buka tab Lampiran Foto dan cetak tanggal yang diinginkan sebagai PDF.
@@ -594,7 +619,10 @@ export default function App() {
           </section>
 
           <section className="card danger-zone">
-            <h2>Reset data</h2>
+            <div className="card-title-row">
+              <div className="card-icon rust"><RotateCcw size={16} /></div>
+              <h2>Reset data</h2>
+            </div>
             <p className="hint">Menghapus seluruh baris rekap di Google Sheet (foto di Drive tidak otomatis terhapus). Tidak bisa dibatalkan.</p>
             {!confirmReset ? (
               <button className="btn ghost danger" onClick={() => setConfirmReset(true)}><RotateCcw size={16} />Reset semua data</button>
