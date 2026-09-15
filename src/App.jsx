@@ -1,8 +1,9 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import {
   Plus, Trash2, Upload, Download, Printer, Image as ImageIcon,
-  FileSpreadsheet, Loader2, Camera, X, ClipboardList, ScanLine,
+  FileSpreadsheet, Loader2, Camera, X, ClipboardList, Leaf,
   RotateCcw, ChevronDown, Settings, Link2, CheckCircle2, Images,
+  Bell, Calendar, Tag, Wrench, Barcode, Hash, Box, User, Bus,
 } from "lucide-react";
 import * as XLSX from "xlsx";
 import Papa from "papaparse";
@@ -10,6 +11,12 @@ import { api, getApiUrl, setApiUrl } from "./api.js";
 import "./styles.css";
 
 const SATUAN_OPTIONS = ["PC", "LITER", "SET", "UNIT", "METER", "BUAH"];
+
+const NAV_ITEMS = [
+  { id: "input", label: "Input & Data", icon: ClipboardList },
+  { id: "lampiran", label: "Lampiran Foto", icon: ImageIcon },
+  { id: "io", label: "Impor & Ekspor", icon: FileSpreadsheet },
+];
 
 function uid() {
   return `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
@@ -344,7 +351,7 @@ export default function App() {
     return (
       <div className="onboard">
         <div className="onboard-card">
-          <div className="brand-mark"><ScanLine size={18} /></div>
+          <div className="brand-mark"><Leaf size={18} /></div>
           <h1>Hubungkan ke Google Sheet</h1>
           <p>
             Tempel URL Web App Apps Script (diakhiri <code>/exec</code>) yang sudah kamu deploy
@@ -393,267 +400,314 @@ export default function App() {
     );
   }
 
+  const activeNav = NAV_ITEMS.find((n) => n.id === tab);
+
   return (
-    <div className="shell">
-      <header className="topbar no-print">
-        <div className="brand">
-          <div className="brand-mark"><ScanLine size={18} strokeWidth={2.2} /></div>
+    <div className="app-shell">
+      <aside className="sidebar no-print">
+        <div className="sidebar-brand">
+          <div className="brand-mark"><Leaf size={19} strokeWidth={2.2} /></div>
           <div>
             <h1>Rekap Barang Bekas</h1>
-            <p>Dinas Perhubungan DIY · Trans Jogja</p>
+            <p>Dinas Perhubungan DIY - Trans Jogja</p>
           </div>
-          <button className="icon-btn settings-btn" onClick={() => setShowSettings(true)} title="Pengaturan">
-            <Settings size={15} />
-          </button>
         </div>
-        <nav className="tabs">
-          {[
-            { id: "input", label: "Input & Data", icon: ClipboardList },
-            { id: "lampiran", label: "Lampiran Foto", icon: ImageIcon },
-            { id: "io", label: "Impor & Ekspor", icon: FileSpreadsheet },
-          ].map(({ id, label, icon: Icon }) => (
-            <button key={id} className={`tab ${tab === id ? "active" : ""}`} onClick={() => setTab(id)}>
-              <Icon size={15} />{label}
+
+        <nav className="side-nav">
+          {NAV_ITEMS.map(({ id, label, icon: Icon }) => (
+            <button key={id} className={`side-nav-item ${tab === id ? "active" : ""}`} onClick={() => setTab(id)}>
+              <Icon size={17} />{label}
             </button>
           ))}
         </nav>
-        <div className="header-divider" />
-        <div className="stats-row no-print">
-          <div className="stat-pill"><strong>{entries.length}</strong><span>Total data</span></div>
-          <div className="stat-pill"><strong>{tanggalList.length}</strong><span>Tanggal tercatat</span></div>
-          <div className="stat-pill"><strong>{totalFoto}</strong><span>Foto terlampir</span></div>
+
+        <div className="side-divider" />
+
+        <div className="side-stats">
+          <div className="side-stat">
+            <div className="side-stat-icon"><FileSpreadsheet size={15} /></div>
+            <div><span>Total Data</span><strong>{entries.length}</strong></div>
+          </div>
+          <div className="side-stat">
+            <div className="side-stat-icon"><Calendar size={15} /></div>
+            <div><span>Tanggal Tercatat</span><strong>{tanggalList.length}</strong></div>
+          </div>
+          <div className="side-stat">
+            <div className="side-stat-icon"><ImageIcon size={15} /></div>
+            <div><span>Foto Terlampir</span><strong>{totalFoto}</strong></div>
+          </div>
         </div>
-      </header>
 
-      {tab === "input" && (
-        <main className="page no-print">
-          <section className="card form-card">
-            <p className="card-kicker">Rekap harian</p>
-            <div className="card-title-row">
-              <div className="card-icon gold"><Plus size={16} /></div>
-              <h2>Tambah data harian</h2>
-            </div>
-            <div className="form-grid">
-              <label><span>Tanggal</span>
-                <input type="date" value={draft.tanggal} onChange={(e) => setDraft((d) => ({ ...d, tanggal: e.target.value }))} />
-              </label>
-              <label><span>LB (no. lambang)</span>
-                <input type="text" placeholder="mis. 47" value={draft.lb} onChange={(e) => setDraft((d) => ({ ...d, lb: e.target.value }))} />
-              </label>
-              <label className="col-2"><span>Nama spare part</span>
-                <input type="text" placeholder="mis. LINER NQR 71" value={draft.namaPart} onChange={(e) => setDraft((d) => ({ ...d, namaPart: e.target.value }))} />
-              </label>
-              <label><span>Kode barang</span>
-                <input type="text" placeholder="mis. NQR0090" value={draft.kodeBarang} onChange={(e) => setDraft((d) => ({ ...d, kodeBarang: e.target.value }))} />
-              </label>
-              <label><span>Jumlah</span>
-                <input type="text" inputMode="decimal" placeholder="mis. 4" value={draft.jumlah} onChange={(e) => setDraft((d) => ({ ...d, jumlah: e.target.value }))} />
-              </label>
-              <label><span>Satuan</span>
-                <select value={draft.satuan} onChange={(e) => setDraft((d) => ({ ...d, satuan: e.target.value }))}>
-                  {SATUAN_OPTIONS.map((s) => <option key={s} value={s}>{s}</option>)}
-                </select>
-              </label>
-              <label><span>Mekanik</span>
-                <input type="text" placeholder="mis. ARIF TRI" value={draft.mekanik} onChange={(e) => setDraft((d) => ({ ...d, mekanik: e.target.value }))} />
-              </label>
-            </div>
-            <button className="btn primary" onClick={addEntry}><Plus size={16} />Tambah ke rekap</button>
-          </section>
+        <button className="side-settings-btn" onClick={() => setShowSettings(true)}>
+          <Settings size={15} />Pengaturan
+        </button>
 
-          <section className="card">
-            <div className="card-head">
+        <div className="sidebar-footer">
+          <Bus size={54} strokeWidth={1.3} />
+          <p>Bersama<br />Untuk Transportasi<br />Yang Lebih Baik</p>
+        </div>
+      </aside>
+
+      <div className="main-area">
+        <header className="main-topbar no-print">
+          <div className="spacer" />
+          <button className="bell-btn" title="Notifikasi"><Bell size={17} /><span className="dot" /></button>
+          <div className="admin-chip"><span className="avatar">AD</span>Admin<ChevronDown size={14} /></div>
+        </header>
+
+        <div className="hero-banner no-print">
+          <div className="hero-blobs" aria-hidden="true"><span className="blob b1" /><span className="blob b2" /><span className="blob b3" /></div>
+          <p className="hero-kicker">Selamat Datang</p>
+          <h2>{activeNav ? activeNav.label : "Rekap Barang Bekas"}</h2>
+          <p className="hero-sub">Dinas Perhubungan DIY - Trans Jogja</p>
+        </div>
+
+        {tab === "input" && (
+          <main className="page no-print">
+            <section className="card form-card">
               <div className="card-title-row">
-                <div className="card-icon"><ClipboardList size={16} /></div>
-                <h2>Rekap tersimpan</h2>
-              </div>
-              <span className="count-pill">{entries.length} baris</span>
-            </div>
-            {!entries.length ? (
-              <EmptyState text="Belum ada data. Tambahkan lewat form di atas atau impor file rekap." />
-            ) : (
-              <div className="table-wrap">
-                <table>
-                  <thead>
-                    <tr>
-                      <th>Tanggal</th><th>LB</th><th>Nama spare part</th><th>Kode</th>
-                      <th>Jml</th><th>Satuan</th><th>Mekanik</th><th>Foto</th><th></th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {sortedEntries.map((e) => (
-                      <tr key={e.id}>
-                        <td>
-                          <input type="date" value={e.tanggal}
-                            onChange={(ev) => updateFieldLocal(e.id, "tanggal", ev.target.value)}
-                            onBlur={(ev) => commitField(e.id, "tanggal", ev.target.value)} />
-                        </td>
-                        <td className="mono">
-                          <input className="cell-input narrow" value={e.lb}
-                            onChange={(ev) => updateFieldLocal(e.id, "lb", ev.target.value)}
-                            onBlur={(ev) => commitField(e.id, "lb", ev.target.value)} />
-                        </td>
-                        <td>
-                          <input className="cell-input" value={e.namaPart}
-                            onChange={(ev) => updateFieldLocal(e.id, "namaPart", ev.target.value)}
-                            onBlur={(ev) => commitField(e.id, "namaPart", ev.target.value)} />
-                        </td>
-                        <td className="mono">
-                          <input className="cell-input" value={e.kodeBarang}
-                            onChange={(ev) => updateFieldLocal(e.id, "kodeBarang", ev.target.value)}
-                            onBlur={(ev) => commitField(e.id, "kodeBarang", ev.target.value)} />
-                        </td>
-                        <td>
-                          <input className="cell-input narrow" value={e.jumlah}
-                            onChange={(ev) => updateFieldLocal(e.id, "jumlah", ev.target.value)}
-                            onBlur={(ev) => commitField(e.id, "jumlah", ev.target.value)} />
-                        </td>
-                        <td>
-                          <select value={e.satuan}
-                            onChange={(ev) => { updateFieldLocal(e.id, "satuan", ev.target.value); commitField(e.id, "satuan", ev.target.value); }}>
-                            {SATUAN_OPTIONS.map((s) => <option key={s} value={s}>{s}</option>)}
-                          </select>
-                        </td>
-                        <td>
-                          <input className="cell-input" value={e.mekanik}
-                            onChange={(ev) => updateFieldLocal(e.id, "mekanik", ev.target.value)}
-                            onBlur={(ev) => commitField(e.id, "mekanik", ev.target.value)} />
-                        </td>
-                        <td>
-                          <div className="photo-slots">
-                            <PhotoSlot label="Kondisi" value={e.fotoKondisi} onPick={(f) => attachPhoto(e.id, "kondisi", f)} onRemove={() => removePhoto(e.id, "kondisi")} />
-                            <PhotoSlot label="Pasang" value={e.fotoPasang} onPick={(f) => attachPhoto(e.id, "pasang", f)} onRemove={() => removePhoto(e.id, "pasang")} />
-                          </div>
-                        </td>
-                        <td>
-                          <button className="icon-btn danger" onClick={() => confirmDeleteEntry(e.id, e.namaPart)} title="Hapus baris"><Trash2 size={15} /></button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </section>
-        </main>
-      )}
-
-      {tab === "lampiran" && (
-        <main className="page">
-          <section className="card no-print">
-            <p className="card-kicker">Dokumentasi</p>
-            <div className="card-head wrap">
-              <div className="card-title-row">
-                <div className="card-icon rust"><Images size={16} /></div>
-                <h2>Lampiran foto per tanggal</h2>
-              </div>
-              <div className="lampiran-controls">
-                <div className="select-wrap">
-                  <select value={lampiranDate} onChange={(e) => setLampiranDate(e.target.value)}>
-                    {tanggalList.length === 0 && <option value="">Belum ada tanggal</option>}
-                    {tanggalList.map((t) => <option key={t} value={t}>{formatTanggalID(t)}</option>)}
-                  </select>
-                  <ChevronDown size={14} className="select-caret" />
+                <div className="card-icon gold"><ClipboardList size={16} /></div>
+                <div>
+                  <h2>Tambah data harian</h2>
+                  <p className="card-desc">Silakan lengkapi data berikut untuk menambah rekapan barang bekas.</p>
                 </div>
-                <button className="btn primary" onClick={triggerPrint}><Printer size={16} />Cetak / simpan PDF</button>
               </div>
-            </div>
-            <p className="hint">
-              Setiap baris rekap otomatis jadi satu blok foto — keterangan LB, nama part, dan kode mengikuti data
-              di Google Sheet, jadi fotonya selalu menempel ke barang yang benar.
-            </p>
-          </section>
-
-          {!lampiranEntries.length ? (
-            <div className="no-print"><EmptyState text="Tidak ada data foto untuk tanggal ini. Pilih tanggal lain atau tambah data dulu." /></div>
-          ) : (
-            <div className="print-area">
-              <div className="sheet-head">
-                <h3>LAMPIRAN FOTO SPARE PART BEKAS</h3>
-                <p>{formatTanggalID(lampiranDate)}</p>
-              </div>
-              <div className="grid-columns-head">
-                <span>Barang (kondisi)</span>
-                <span>Lampiran (pemasangan)</span>
-              </div>
-              <div className="photo-rows">
-                {lampiranEntries.map((e) => (
-                  <div className="photo-row" key={e.id}>
-                    <PhotoCard entry={e} slot="kondisi" title="(BARU DAN BEKAS)" onPick={(f) => attachPhoto(e.id, "kondisi", f)} />
-                    <PhotoCard entry={e} slot="pasang" title="(PENGGANTIAN)" onPick={(f) => attachPhoto(e.id, "pasang", f)} />
+              <div className="form-grid">
+                <label><span>Tanggal</span>
+                  <div className="input-wrap"><Calendar size={15} className="input-icon" />
+                    <input type="date" value={draft.tanggal} onChange={(e) => setDraft((d) => ({ ...d, tanggal: e.target.value }))} />
                   </div>
-                ))}
+                </label>
+                <label><span>LB (no. lambang)</span>
+                  <div className="input-wrap"><Tag size={15} className="input-icon" />
+                    <input type="text" placeholder="mis. 47" value={draft.lb} onChange={(e) => setDraft((d) => ({ ...d, lb: e.target.value }))} />
+                  </div>
+                </label>
+                <label className="col-2"><span>Nama spare part</span>
+                  <div className="input-wrap"><Wrench size={15} className="input-icon" />
+                    <input type="text" placeholder="mis. LINER NQR 71" value={draft.namaPart} onChange={(e) => setDraft((d) => ({ ...d, namaPart: e.target.value }))} />
+                  </div>
+                </label>
+                <label><span>Kode barang</span>
+                  <div className="input-wrap"><Barcode size={15} className="input-icon" />
+                    <input type="text" placeholder="mis. NQR0090" value={draft.kodeBarang} onChange={(e) => setDraft((d) => ({ ...d, kodeBarang: e.target.value }))} />
+                  </div>
+                </label>
+                <label><span>Jumlah</span>
+                  <div className="input-wrap"><Hash size={15} className="input-icon" />
+                    <input type="text" inputMode="decimal" placeholder="mis. 4" value={draft.jumlah} onChange={(e) => setDraft((d) => ({ ...d, jumlah: e.target.value }))} />
+                  </div>
+                </label>
+                <label><span>Satuan</span>
+                  <div className="input-wrap"><Box size={15} className="input-icon" />
+                    <select value={draft.satuan} onChange={(e) => setDraft((d) => ({ ...d, satuan: e.target.value }))}>
+                      {SATUAN_OPTIONS.map((s) => <option key={s} value={s}>{s}</option>)}
+                    </select>
+                  </div>
+                </label>
+                <label><span>Mekanik</span>
+                  <div className="input-wrap"><User size={15} className="input-icon" />
+                    <input type="text" placeholder="mis. ARIF TRI" value={draft.mekanik} onChange={(e) => setDraft((d) => ({ ...d, mekanik: e.target.value }))} />
+                  </div>
+                </label>
               </div>
-            </div>
-          )}
-        </main>
-      )}
+              <button className="btn primary" onClick={addEntry}><Plus size={16} />Tambah ke rekap</button>
+            </section>
 
-      {tab === "io" && (
-        <main className="page no-print">
-          <section className="card">
-            <div className="card-title-row">
-              <div className="card-icon gold"><Upload size={16} /></div>
-              <h2>Impor data rekap</h2>
-            </div>
-            <p className="hint">
-              Terima file .csv atau .xlsx dengan kolom seperti rekap harian (LB/Hari, Tanggal, Nama Spare Part,
-              Kode Barang, Jumlah, Satuan, Mekanik). Nama kolom tidak harus persis sama. Setiap baris langsung
-              ditulis ke Google Sheet.
-            </p>
-            <input ref={importRef} type="file" accept=".csv,.xlsx,.xls" className="file-input" id="import-file"
-              onChange={(e) => handleImport(e.target.files?.[0])} />
-            <label htmlFor="import-file" className="btn ghost"><Upload size={16} />Pilih file rekap</label>
-          </section>
+            <section className="card">
+              <div className="card-head">
+                <div className="card-title-row">
+                  <div className="card-icon"><ClipboardList size={16} /></div>
+                  <div>
+                    <h2>Rekap tersimpan</h2>
+                    <p className="card-desc">Data yang sudah tersimpan akan muncul di sini.</p>
+                  </div>
+                </div>
+                <span className="count-pill">{entries.length} baris</span>
+              </div>
+              {!entries.length ? (
+                <EmptyState text="Belum ada data. Tambahkan lewat form di atas atau impor file rekap." />
+              ) : (
+                <div className="table-wrap">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Tanggal</th><th>LB</th><th>Nama spare part</th><th>Kode</th>
+                        <th>Jml</th><th>Satuan</th><th>Mekanik</th><th>Foto</th><th></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {sortedEntries.map((e) => (
+                        <tr key={e.id}>
+                          <td>
+                            <input type="date" value={e.tanggal}
+                              onChange={(ev) => updateFieldLocal(e.id, "tanggal", ev.target.value)}
+                              onBlur={(ev) => commitField(e.id, "tanggal", ev.target.value)} />
+                          </td>
+                          <td className="mono">
+                            <input className="cell-input narrow" value={e.lb}
+                              onChange={(ev) => updateFieldLocal(e.id, "lb", ev.target.value)}
+                              onBlur={(ev) => commitField(e.id, "lb", ev.target.value)} />
+                          </td>
+                          <td>
+                            <input className="cell-input" value={e.namaPart}
+                              onChange={(ev) => updateFieldLocal(e.id, "namaPart", ev.target.value)}
+                              onBlur={(ev) => commitField(e.id, "namaPart", ev.target.value)} />
+                          </td>
+                          <td className="mono">
+                            <input className="cell-input" value={e.kodeBarang}
+                              onChange={(ev) => updateFieldLocal(e.id, "kodeBarang", ev.target.value)}
+                              onBlur={(ev) => commitField(e.id, "kodeBarang", ev.target.value)} />
+                          </td>
+                          <td>
+                            <input className="cell-input narrow" value={e.jumlah}
+                              onChange={(ev) => updateFieldLocal(e.id, "jumlah", ev.target.value)}
+                              onBlur={(ev) => commitField(e.id, "jumlah", ev.target.value)} />
+                          </td>
+                          <td>
+                            <select value={e.satuan}
+                              onChange={(ev) => { updateFieldLocal(e.id, "satuan", ev.target.value); commitField(e.id, "satuan", ev.target.value); }}>
+                              {SATUAN_OPTIONS.map((s) => <option key={s} value={s}>{s}</option>)}
+                            </select>
+                          </td>
+                          <td>
+                            <input className="cell-input" value={e.mekanik}
+                              onChange={(ev) => updateFieldLocal(e.id, "mekanik", ev.target.value)}
+                              onBlur={(ev) => commitField(e.id, "mekanik", ev.target.value)} />
+                          </td>
+                          <td>
+                            <div className="photo-slots">
+                              <PhotoSlot label="Kondisi" value={e.fotoKondisi} onPick={(f) => attachPhoto(e.id, "kondisi", f)} onRemove={() => removePhoto(e.id, "kondisi")} />
+                              <PhotoSlot label="Pasang" value={e.fotoPasang} onPick={(f) => attachPhoto(e.id, "pasang", f)} onRemove={() => removePhoto(e.id, "pasang")} />
+                            </div>
+                          </td>
+                          <td>
+                            <button className="icon-btn danger" onClick={() => confirmDeleteEntry(e.id, e.namaPart)} title="Hapus baris"><Trash2 size={15} /></button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </section>
+          </main>
+        )}
 
-          <section className="card">
-            <div className="card-title-row">
-              <div className="card-icon"><Download size={16} /></div>
-              <h2>Ekspor</h2>
-            </div>
-            <p className="hint">
-              Unduh seluruh rekap sebagai spreadsheet (data selalu sinkron dengan Google Sheet sumbernya), atau
-              buka tab Lampiran Foto dan cetak tanggal yang diinginkan sebagai PDF.
-            </p>
-            <div className="btn-row">
-              <button className="btn primary" onClick={exportData}><Download size={16} />Ekspor rekap (.xlsx)</button>
-              <button className="btn ghost" onClick={() => setTab("lampiran")}><Printer size={16} />Buka lampiran foto</button>
-            </div>
-          </section>
+        {tab === "lampiran" && (
+          <main className="page">
+            <section className="card no-print">
+              <div className="card-head wrap">
+                <div className="card-title-row">
+                  <div className="card-icon rust"><Images size={16} /></div>
+                  <div>
+                    <h2>Lampiran foto per tanggal</h2>
+                    <p className="card-desc">Setiap baris rekap otomatis jadi satu blok foto, mengikuti data di Google Sheet.</p>
+                  </div>
+                </div>
+                <div className="lampiran-controls">
+                  <div className="select-wrap">
+                    <select value={lampiranDate} onChange={(e) => setLampiranDate(e.target.value)}>
+                      {tanggalList.length === 0 && <option value="">Belum ada tanggal</option>}
+                      {tanggalList.map((t) => <option key={t} value={t}>{formatTanggalID(t)}</option>)}
+                    </select>
+                    <ChevronDown size={14} className="select-caret" />
+                  </div>
+                  <button className="btn primary" onClick={triggerPrint}><Printer size={16} />Cetak / simpan PDF</button>
+                </div>
+              </div>
+            </section>
 
-          <section className="card danger-zone">
-            <div className="card-title-row">
-              <div className="card-icon rust"><RotateCcw size={16} /></div>
-              <h2>Reset data</h2>
-            </div>
-            <p className="hint">Menghapus seluruh baris rekap di Google Sheet (foto di Drive tidak otomatis terhapus). Tidak bisa dibatalkan.</p>
-            {!confirmReset ? (
-              <button className="btn ghost danger" onClick={() => setConfirmReset(true)}><RotateCcw size={16} />Reset semua data</button>
+            {!lampiranEntries.length ? (
+              <div className="no-print"><EmptyState text="Tidak ada data foto untuk tanggal ini. Pilih tanggal lain atau tambah data dulu." /></div>
             ) : (
-              <div className="btn-row">
-                <button className="btn danger" onClick={resetAll}>Ya, hapus semuanya</button>
-                <button className="btn ghost" onClick={() => setConfirmReset(false)}>Batal</button>
+              <div className="print-area">
+                <div className="sheet-head">
+                  <h3>LAMPIRAN FOTO SPARE PART BEKAS</h3>
+                  <p>{formatTanggalID(lampiranDate)}</p>
+                </div>
+                <div className="grid-columns-head">
+                  <span>Barang (kondisi)</span>
+                  <span>Lampiran (pemasangan)</span>
+                </div>
+                <div className="photo-rows">
+                  {lampiranEntries.map((e) => (
+                    <div className="photo-row" key={e.id}>
+                      <PhotoCard entry={e} slot="kondisi" title="(BARU DAN BEKAS)" onPick={(f) => attachPhoto(e.id, "kondisi", f)} />
+                      <PhotoCard entry={e} slot="pasang" title="(PENGGANTIAN)" onPick={(f) => attachPhoto(e.id, "pasang", f)} />
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
-          </section>
-        </main>
-      )}
+          </main>
+        )}
 
-      {busy && <div className="busy-overlay no-print"><Loader2 className="spin" size={20} /></div>}
-      {toast && (
-        <div className={`toast ${toast.tone} no-print`}>
-          {toast.msg}
-          <button onClick={() => setToast(null)}><X size={13} /></button>
-        </div>
-      )}
-      {showSettings && (
-        <SettingsPanel
-          apiUrlInput={apiUrlInput}
-          setApiUrlInput={setApiUrlInput}
-          onSave={saveApiUrl}
-          onClose={() => setShowSettings(false)}
-        />
-      )}
+        {tab === "io" && (
+          <main className="page no-print">
+            <section className="card">
+              <div className="card-title-row">
+                <div className="card-icon gold"><Upload size={16} /></div>
+                <div>
+                  <h2>Impor data rekap</h2>
+                  <p className="card-desc">Terima file .csv atau .xlsx dengan kolom seperti rekap harian. Setiap baris langsung ditulis ke Google Sheet.</p>
+                </div>
+              </div>
+              <input ref={importRef} type="file" accept=".csv,.xlsx,.xls" className="file-input" id="import-file"
+                onChange={(e) => handleImport(e.target.files?.[0])} />
+              <label htmlFor="import-file" className="btn ghost"><Upload size={16} />Pilih file rekap</label>
+            </section>
+
+            <section className="card">
+              <div className="card-title-row">
+                <div className="card-icon"><Download size={16} /></div>
+                <div>
+                  <h2>Ekspor</h2>
+                  <p className="card-desc">Unduh seluruh rekap sebagai spreadsheet, atau cetak lampiran foto sebagai PDF.</p>
+                </div>
+              </div>
+              <div className="btn-row">
+                <button className="btn primary" onClick={exportData}><Download size={16} />Ekspor rekap (.xlsx)</button>
+                <button className="btn ghost" onClick={() => setTab("lampiran")}><Printer size={16} />Buka lampiran foto</button>
+              </div>
+            </section>
+
+            <section className="card danger-zone">
+              <div className="card-title-row">
+                <div className="card-icon rust"><RotateCcw size={16} /></div>
+                <div>
+                  <h2>Reset data</h2>
+                  <p className="card-desc">Menghapus seluruh baris rekap di Google Sheet. Tidak bisa dibatalkan.</p>
+                </div>
+              </div>
+              {!confirmReset ? (
+                <button className="btn ghost danger" onClick={() => setConfirmReset(true)}><RotateCcw size={16} />Reset semua data</button>
+              ) : (
+                <div className="btn-row">
+                  <button className="btn danger" onClick={resetAll}>Ya, hapus semuanya</button>
+                  <button className="btn ghost" onClick={() => setConfirmReset(false)}>Batal</button>
+                </div>
+              )}
+            </section>
+          </main>
+        )}
+
+        {busy && <div className="busy-overlay no-print"><Loader2 className="spin" size={20} /></div>}
+        {toast && (
+          <div className={`toast ${toast.tone} no-print`}>
+            {toast.msg}
+            <button onClick={() => setToast(null)}><X size={13} /></button>
+          </div>
+        )}
+        {showSettings && (
+          <SettingsPanel
+            apiUrlInput={apiUrlInput}
+            setApiUrlInput={setApiUrlInput}
+            onSave={saveApiUrl}
+            onClose={() => setShowSettings(false)}
+          />
+        )}
+      </div>
     </div>
   );
 }
