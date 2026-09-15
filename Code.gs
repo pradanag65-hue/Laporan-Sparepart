@@ -1,33 +1,49 @@
 /**
  * REKAP BARANG BEKAS — backend Apps Script
  * -----------------------------------------
- * Database: sheet "Entries" di spreadsheet yang sama dengan script ini
- *           (bikin script ini lewat Extensions > Apps Script di dalam
- *           Google Sheet-nya, supaya otomatis "bound" ke sheet itu).
+ * Database: sheet "Entries" + sheet "Users" (akun login) di spreadsheet
+ *           yang sama dengan script ini (bikin script ini lewat
+ *           Extensions > Apps Script di dalam Google Sheet-nya).
  * Foto    : disimpan sebagai file di folder Drive "RekapBarangBekas_Foto",
  *           URL publik-nya disimpan di kolom FotoKondisiURL / FotoPasangURL.
  *
+ * PERAN AKUN (kolom Role di sheet "Users"):
+ *  - admin : akses penuh (lihat, tambah, edit, hapus, reset)
+ *  - input : cuma bisa menambah data baru + lampirkan foto miliknya sendiri,
+ *            tidak bisa mengedit atau menghapus data yang sudah tersimpan
+ *  - guest : cuma bisa melihat data, tidak bisa menambah/mengedit/menghapus
+ *
  * CARA DEPLOY:
  * 1. Buka Google Sheet baru, kasih nama mis. "Rekap Barang Bekas - DB".
- * 2. Buat sheet bernama persis "Entries" (huruf besar E), baris pertama
- *    diisi header (script akan membuatnya otomatis kalau kosong).
- * 3. Extensions > Apps Script, hapus isi default, tempel seluruh isi file ini.
+ * 2. Extensions > Apps Script, hapus isi default, tempel seluruh isi file ini.
+ * 3. GANTI nilai SECRET di bawah dengan teks acak milikmu sendiri (jangan
+ *    dibiarkan nilai default) — ini dipakai untuk menandatangani sesi login.
  * 4. Deploy > New deployment > pilih tipe "Web app".
  *    - Execute as: Me
  *    - Who has access: Anyone
  * 5. Klik Deploy, izinkan akses (authorize) saat diminta.
  * 6. Copy URL Web App yang muncul (diakhiri /exec) — itu yang dipakai
- *    di pengaturan aplikasi frontend (VITE / localStorage apiUrl).
- * 7. Setiap kali code ini diubah, buat "New deployment" lagi (atau Manage
+ *    di pengaturan aplikasi frontend.
+ * 7. Buka sheet "Users" yang otomatis terbuat, akan ada 1 baris akun admin
+ *    default: username "admin", password "admin123", role "admin".
+ *    SEGERA GANTI password itu, dan tambah baris akun lain (role: admin /
+ *    input / guest) sesuai kebutuhan tim kamu.
+ * 8. Setiap kali code ini diubah, buat "New deployment" lagi (atau Manage
  *    deployments > edit > New version) supaya perubahan aktif.
  */
 
 const SHEET_NAME = "Entries";
+const USERS_SHEET_NAME = "Users";
 const PHOTO_FOLDER_NAME = "RekapBarangBekas_Foto";
 const HEADERS = [
   "ID", "Tanggal", "LB", "NamaPart", "KodeBarang", "Jumlah",
   "Satuan", "Mekanik", "FotoKondisiURL", "FotoPasangURL", "CreatedAt",
 ];
+const USER_HEADERS = ["Username", "Password", "Role"];
+
+// GANTI dengan teks acak milikmu sendiri sebelum deploy!
+const SECRET = "GANTI-DENGAN-TEKS-RAHASIA-ACAK-MILIKMU";
+const TOKEN_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000; // 30 hari
 
 function getSheet_() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
@@ -40,6 +56,19 @@ function getSheet_() {
   // Paksa kolom Tanggal (B) selalu teks biasa, supaya Sheets tidak pernah
   // otomatis mengubahnya jadi objek Date (yang bisa bergeser tanggal karena zona waktu).
   sheet.getRange("B2:B").setNumberFormat("@");
+  return sheet;
+}
+
+function getUsersSheet_() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let sheet = ss.getSheetByName(USERS_SHEET_NAME);
+  if (!sheet) sheet = ss.insertSheet(USERS_SHEET_NAME);
+  if (sheet.getLastRow() === 0) {
+    sheet.appendRow(USER_HEADERS);
+    sheet.setFrozenRows(1);
+    // Akun admin default supaya bisa login pertama kali — SEGERA GANTI.
+    sheet.appendRow(["admin", "admin123", "admin"]);
+  }
   return sheet;
 }
 
@@ -98,7 +127,60 @@ function jsonOut_(obj) {
   );
 }
 
-// ---- GET: baca data ----
+// ---------------- auth ----------------
+
+function b64url_(bytes) {
+  return Utilities.base64EncodeWebSafe(bytes).replace(/=+$/, "");
+}
+
+function signToken_(username, role) {
+  const payload = JSON.stringify({ u: username, r: role, t: Date.now() });
+  const payloadB64 = b64url_(Utilities.newBlob(payload).getBytes());
+  const sig = Utilities.computeHmacSha256Signature(payloadB64, SECRET);
+  const sigB64 = b64url_(sig);
+  return payloadB64 + "." + sigB64;
+}
+
+// Mengembalikan {username, role} kalau valid, atau null kalau tidak.
+function verifyToken_(token) {
+  try {
+    if (!token || token.indexOf(".") === -1) return null;
+    const parts = token.split(".");
+    const payloadB64 = parts[0];
+    const sigB64 = parts[1];
+    const expectedSig = b64url_(Utilities.computeHmacSha256Signature(payloadB64, SECRET));
+    if (expectedSig !== sigB64) return null;
+    const payload = JSON.parse(Utilities.newBlob(Utilities.base64DecodeWebSafe(payloadB64)).getDataAsString());
+    if (!payload.t || Date.now() - payload.t > TOKEN_MAX_AGE_MS) return null;
+    return { username: payload.u, role: payload.r };
+  } catch (err) {
+    return null;
+  }
+}
+
+function login_(username, password) {
+  const sheet = getUsersSheet_();
+  const values = sheet.getDataRange().getValues();
+  for (let i = 1; i < values.length; i++) {
+    const [u, p, role] = values[i];
+    if (String(u).trim() === String(username).trim() && String(p) === String(password)) {
+      return { ok: true, username: String(u).trim(), role: String(role).trim().toLowerCase(), token: signToken_(String(u).trim(), String(role).trim().toLowerCase()) };
+    }
+  }
+  return { ok: false, error: "Username atau password salah." };
+}
+
+// Melempar error kalau token tidak valid / rolenya tidak diizinkan.
+function requireRole_(token, allowedRoles) {
+  const auth = verifyToken_(token);
+  if (!auth) throw new Error("Sesi tidak valid atau sudah habis, silakan login ulang.");
+  if (allowedRoles.indexOf(auth.role) === -1) {
+    throw new Error("Akun kamu (" + auth.role + ") tidak punya izin untuk aksi ini.");
+  }
+  return auth;
+}
+
+// ---- GET: baca data (semua peran yang sudah login boleh baca) ----
 function doGet(e) {
   const action = (e.parameter && e.parameter.action) || "list";
   try {
@@ -111,14 +193,20 @@ function doGet(e) {
   }
 }
 
-// ---- POST: tulis data (add / update / delete / uploadPhoto) ----
+// ---- POST: login serta tulis data (add / update / delete / uploadPhoto) ----
 function doPost(e) {
   try {
     const body = JSON.parse(e.postData.contents || "{}");
     const action = body.action;
+
+    if (action === "login") {
+      return jsonOut_(login_(body.username || "", body.password || ""));
+    }
+
     const sheet = getSheet_();
 
     if (action === "add") {
+      requireRole_(body.token, ["admin", "input"]);
       const id = Utilities.getUuid();
       const now = new Date();
       sheet.appendRow([
@@ -138,6 +226,7 @@ function doPost(e) {
     }
 
     if (action === "update") {
+      requireRole_(body.token, ["admin"]);
       const row = findRowById_(sheet, body.id);
       if (row === -1) return jsonOut_({ ok: false, error: "ID tidak ditemukan" });
       const fieldToCol = {
@@ -152,6 +241,7 @@ function doPost(e) {
     }
 
     if (action === "delete") {
+      requireRole_(body.token, ["admin"]);
       const row = findRowById_(sheet, body.id);
       if (row === -1) return jsonOut_({ ok: false, error: "ID tidak ditemukan" });
       sheet.deleteRow(row);
@@ -159,6 +249,7 @@ function doPost(e) {
     }
 
     if (action === "uploadPhoto") {
+      requireRole_(body.token, ["admin", "input"]);
       const row = findRowById_(sheet, body.id);
       if (row === -1) return jsonOut_({ ok: false, error: "ID tidak ditemukan" });
 
@@ -188,6 +279,7 @@ function doPost(e) {
     }
 
     if (action === "removePhoto") {
+      requireRole_(body.token, ["admin"]);
       const row = findRowById_(sheet, body.id);
       if (row === -1) return jsonOut_({ ok: false, error: "ID tidak ditemukan" });
       const col = body.slot === "kondisi" ? 9 : 10;
