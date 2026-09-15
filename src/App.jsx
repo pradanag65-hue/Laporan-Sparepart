@@ -4,10 +4,11 @@ import {
   FileSpreadsheet, Loader2, Camera, X, ClipboardList, Leaf,
   RotateCcw, ChevronDown, Settings, Link2, CheckCircle2, Images,
   Bell, Calendar, Tag, Wrench, Barcode, Hash, Box, User, Bus,
+  LogOut, Lock, Eye,
 } from "lucide-react";
 import * as XLSX from "xlsx";
 import Papa from "papaparse";
-import { api, getApiUrl, setApiUrl } from "./api.js";
+import { api, getApiUrl, setApiUrl, getAuthUser, setAuthUser, clearAuthUser } from "./api.js";
 import "./styles.css";
 
 const SATUAN_OPTIONS = ["PC", "LITER", "SET", "UNIT", "METER", "BUAH"];
@@ -17,6 +18,8 @@ const NAV_ITEMS = [
   { id: "lampiran", label: "Lampiran Foto", icon: ImageIcon },
   { id: "io", label: "Impor & Ekspor", icon: FileSpreadsheet },
 ];
+
+const ROLE_LABEL = { admin: "Admin", input: "Input", guest: "Guest" };
 
 function uid() {
   return `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
@@ -108,6 +111,10 @@ const emptyDraft = () => ({
 export default function App() {
   const [apiUrlInput, setApiUrlInput] = useState(getApiUrl().includes("PASTE_URL") ? "" : getApiUrl());
   const [connected, setConnected] = useState(!!getApiUrl() && !getApiUrl().includes("PASTE_URL"));
+  const [authUser, setAuthUserState] = useState(getAuthUser());
+  const [loginForm, setLoginForm] = useState({ username: "", password: "" });
+  const [loginError, setLoginError] = useState("");
+  const [loginBusy, setLoginBusy] = useState(false);
   const [entries, setEntries] = useState([]);
   const [loaded, setLoaded] = useState(false);
   const [loadError, setLoadError] = useState("");
@@ -125,6 +132,15 @@ export default function App() {
     window.clearTimeout(notify._t);
     notify._t = window.setTimeout(() => setToast(null), 3200);
   }, []);
+
+  const handleApiError = useCallback((err, prefix) => {
+    const msg = err.message || String(err);
+    notify(prefix ? `${prefix}: ${msg}` : msg, "err");
+    if (/sesi tidak valid/i.test(msg)) {
+      clearAuthUser();
+      setAuthUserState(null);
+    }
+  }, [notify]);
 
   const loadEntries = useCallback(async () => {
     if (!getApiUrl()) return;
@@ -150,6 +166,32 @@ export default function App() {
     setApiUrl(apiUrlInput);
     setConnected(true);
     setShowSettings(false);
+  }
+
+  async function handleLogin() {
+    if (!loginForm.username.trim() || !loginForm.password) {
+      setLoginError("Isi username dan password.");
+      return;
+    }
+    setLoginBusy(true);
+    setLoginError("");
+    try {
+      const result = await api.login(loginForm.username.trim(), loginForm.password);
+      const user = { username: result.username, role: result.role, token: result.token };
+      setAuthUser(user);
+      setAuthUserState(user);
+    } catch (err) {
+      setLoginError(err.message || "Login gagal.");
+    } finally {
+      setLoginBusy(false);
+    }
+  }
+
+  function handleLogout() {
+    if (!window.confirm("Keluar dari akun ini?")) return;
+    clearAuthUser();
+    setAuthUserState(null);
+    setLoginForm({ username: "", password: "" });
   }
 
   const tanggalList = useMemo(() => {
@@ -193,7 +235,7 @@ export default function App() {
       notify("Data ditambahkan ke Google Sheet.");
     } catch (err) {
       console.error(err);
-      notify("Gagal menyimpan: " + err.message, "err");
+      handleApiError(err, "Gagal menyimpan");
     } finally {
       setBusy(false);
     }
@@ -206,7 +248,7 @@ export default function App() {
       setEntries((prev) => prev.filter((e) => e.id !== id));
       notify("Data dihapus.");
     } catch (err) {
-      notify("Gagal menghapus: " + err.message, "err");
+      handleApiError(err, "Gagal menghapus");
     } finally {
       setBusy(false);
     }
@@ -226,7 +268,7 @@ export default function App() {
     try {
       await api.updateEntry(id, { [field]: value });
     } catch (err) {
-      notify("Gagal menyimpan perubahan: " + err.message, "err");
+      handleApiError(err, "Gagal menyimpan perubahan");
     }
   }
 
@@ -241,7 +283,7 @@ export default function App() {
       notify("Foto tersimpan ke Google Drive.");
     } catch (err) {
       console.error(err);
-      notify("Gagal mengunggah foto: " + err.message, "err");
+      handleApiError(err, "Gagal mengunggah foto");
     } finally {
       setBusy(false);
     }
@@ -253,7 +295,7 @@ export default function App() {
       const key = slot === "kondisi" ? "fotoKondisi" : "fotoPasang";
       setEntries((prev) => prev.map((e) => (e.id === id ? { ...e, [key]: null } : e)));
     } catch (err) {
-      notify("Gagal menghapus foto: " + err.message, "err");
+      handleApiError(err, "Gagal menghapus foto");
     }
   }
 
@@ -286,7 +328,7 @@ export default function App() {
       notify(`${count} baris berhasil diimpor ke Google Sheet.`);
     } catch (err) {
       console.error(err);
-      notify("Gagal mengimpor: " + err.message, "err");
+      handleApiError(err, "Gagal mengimpor");
     } finally {
       setBusy(false);
       if (importRef.current) importRef.current.value = "";
@@ -331,7 +373,7 @@ export default function App() {
       setEntries([]);
       notify("Semua data direset.");
     } catch (err) {
-      notify("Gagal mereset data: " + err.message, "err");
+      handleApiError(err, "Gagal mereset data");
     } finally {
       setBusy(false);
       setConfirmReset(false);
@@ -400,6 +442,50 @@ export default function App() {
     );
   }
 
+  // ---- login: belum ada akun yang masuk ----
+  if (!authUser) {
+    return (
+      <div className="onboard">
+        <div className="onboard-card">
+          <div className="brand-mark"><Lock size={18} /></div>
+          <h1>Masuk ke Rekap Barang Bekas</h1>
+          <p>Gunakan akun yang sudah didaftarkan admin di sheet "Users".</p>
+          <input
+            type="text"
+            placeholder="Username"
+            value={loginForm.username}
+            onChange={(e) => setLoginForm((f) => ({ ...f, username: e.target.value }))}
+            onKeyDown={(e) => e.key === "Enter" && handleLogin()}
+          />
+          <input
+            type="password"
+            placeholder="Password"
+            value={loginForm.password}
+            onChange={(e) => setLoginForm((f) => ({ ...f, password: e.target.value }))}
+            onKeyDown={(e) => e.key === "Enter" && handleLogin()}
+          />
+          {loginError && <p className="login-error">{loginError}</p>}
+          <button className="btn primary" onClick={handleLogin} disabled={loginBusy}>
+            {loginBusy ? <Loader2 size={16} className="spin" /> : <Lock size={16} />}
+            Masuk
+          </button>
+          <button className="link-btn" onClick={() => setShowSettings(true)}>Ubah URL Apps Script</button>
+        </div>
+        {showSettings && (
+          <SettingsPanel
+            apiUrlInput={apiUrlInput}
+            setApiUrlInput={setApiUrlInput}
+            onSave={saveApiUrl}
+            onClose={() => setShowSettings(false)}
+          />
+        )}
+      </div>
+    );
+  }
+
+  const role = authUser.role;
+  const canCreate = role === "admin" || role === "input";
+  const canEdit = role === "admin";
   const activeNav = NAV_ITEMS.find((n) => n.id === tab);
 
   return (
@@ -409,7 +495,7 @@ export default function App() {
           <div className="brand-mark"><Leaf size={19} strokeWidth={2.2} /></div>
           <div>
             <h1>Rekap Barang Bekas</h1>
-            <p>PT AMI - Trans Jogja</p>
+            <p>Dinas Perhubungan DIY - Trans Jogja</p>
           </div>
         </div>
 
@@ -442,6 +528,15 @@ export default function App() {
           <Settings size={15} />Pengaturan
         </button>
 
+        <div className="side-user">
+          <div className="side-user-avatar">{authUser.username.slice(0, 2).toUpperCase()}</div>
+          <div className="side-user-info">
+            <strong>{authUser.username}</strong>
+            <span>{ROLE_LABEL[role] || role}</span>
+          </div>
+          <button className="side-logout-btn" onClick={handleLogout} title="Keluar"><LogOut size={15} /></button>
+        </div>
+
         <div className="sidebar-footer">
           <Bus size={54} strokeWidth={1.3} />
           <p>Bersama<br />Untuk Transportasi<br />Yang Lebih Baik</p>
@@ -452,18 +547,22 @@ export default function App() {
         <header className="main-topbar no-print">
           <div className="spacer" />
           <button className="bell-btn" title="Notifikasi"><Bell size={17} /><span className="dot" /></button>
-          <div className="admin-chip"><span className="avatar">AD</span>Admin<ChevronDown size={14} /></div>
+          <button className="admin-chip" onClick={handleLogout} title="Klik untuk keluar">
+            <span className="avatar">{authUser.username.slice(0, 2).toUpperCase()}</span>
+            {authUser.username}<ChevronDown size={14} />
+          </button>
         </header>
 
         <div className="hero-banner no-print">
           <div className="hero-blobs" aria-hidden="true"><span className="blob b1" /><span className="blob b2" /><span className="blob b3" /></div>
           <p className="hero-kicker">Selamat Datang</p>
           <h2>{activeNav ? activeNav.label : "Rekap Barang Bekas"}</h2>
-          <p className="hero-sub">PT AMI - Trans Jogja</p>
+          <p className="hero-sub">Dinas Perhubungan DIY - Trans Jogja</p>
         </div>
 
         {tab === "input" && (
           <main className="page no-print">
+            {canCreate ? (
             <section className="card form-card">
               <div className="card-title-row">
                 <div className="card-icon gold"><ClipboardList size={16} /></div>
@@ -513,6 +612,17 @@ export default function App() {
               </div>
               <button className="btn primary" onClick={addEntry}><Plus size={16} />Tambah ke rekap</button>
             </section>
+            ) : (
+            <section className="card role-notice">
+              <div className="card-title-row">
+                <div className="card-icon"><Eye size={16} /></div>
+                <div>
+                  <h2>Mode lihat saja</h2>
+                  <p className="card-desc">Akun guest hanya bisa melihat rekap, tidak bisa menambah, mengedit, atau menghapus data.</p>
+                </div>
+              </div>
+            </section>
+            )}
 
             <section className="card">
               <div className="card-head">
@@ -533,57 +643,77 @@ export default function App() {
                     <thead>
                       <tr>
                         <th>Tanggal</th><th>LB</th><th>Nama spare part</th><th>Kode</th>
-                        <th>Jml</th><th>Satuan</th><th>Mekanik</th><th>Foto</th><th></th>
+                        <th>Jml</th><th>Satuan</th><th>Mekanik</th><th>Foto</th>{canEdit && <th></th>}
                       </tr>
                     </thead>
                     <tbody>
                       {sortedEntries.map((e) => (
                         <tr key={e.id}>
                           <td>
-                            <input type="date" value={e.tanggal}
-                              onChange={(ev) => updateFieldLocal(e.id, "tanggal", ev.target.value)}
-                              onBlur={(ev) => commitField(e.id, "tanggal", ev.target.value)} />
+                            {canEdit ? (
+                              <input type="date" value={e.tanggal}
+                                onChange={(ev) => updateFieldLocal(e.id, "tanggal", ev.target.value)}
+                                onBlur={(ev) => commitField(e.id, "tanggal", ev.target.value)} />
+                            ) : formatTanggalID(e.tanggal)}
                           </td>
                           <td className="mono">
-                            <input className="cell-input narrow" value={e.lb}
-                              onChange={(ev) => updateFieldLocal(e.id, "lb", ev.target.value)}
-                              onBlur={(ev) => commitField(e.id, "lb", ev.target.value)} />
+                            {canEdit ? (
+                              <input className="cell-input narrow" value={e.lb}
+                                onChange={(ev) => updateFieldLocal(e.id, "lb", ev.target.value)}
+                                onBlur={(ev) => commitField(e.id, "lb", ev.target.value)} />
+                            ) : e.lb}
                           </td>
                           <td>
-                            <input className="cell-input" value={e.namaPart}
-                              onChange={(ev) => updateFieldLocal(e.id, "namaPart", ev.target.value)}
-                              onBlur={(ev) => commitField(e.id, "namaPart", ev.target.value)} />
+                            {canEdit ? (
+                              <input className="cell-input" value={e.namaPart}
+                                onChange={(ev) => updateFieldLocal(e.id, "namaPart", ev.target.value)}
+                                onBlur={(ev) => commitField(e.id, "namaPart", ev.target.value)} />
+                            ) : e.namaPart}
                           </td>
                           <td className="mono">
-                            <input className="cell-input" value={e.kodeBarang}
-                              onChange={(ev) => updateFieldLocal(e.id, "kodeBarang", ev.target.value)}
-                              onBlur={(ev) => commitField(e.id, "kodeBarang", ev.target.value)} />
+                            {canEdit ? (
+                              <input className="cell-input" value={e.kodeBarang}
+                                onChange={(ev) => updateFieldLocal(e.id, "kodeBarang", ev.target.value)}
+                                onBlur={(ev) => commitField(e.id, "kodeBarang", ev.target.value)} />
+                            ) : e.kodeBarang}
                           </td>
                           <td>
-                            <input className="cell-input narrow" value={e.jumlah}
-                              onChange={(ev) => updateFieldLocal(e.id, "jumlah", ev.target.value)}
-                              onBlur={(ev) => commitField(e.id, "jumlah", ev.target.value)} />
+                            {canEdit ? (
+                              <input className="cell-input narrow" value={e.jumlah}
+                                onChange={(ev) => updateFieldLocal(e.id, "jumlah", ev.target.value)}
+                                onBlur={(ev) => commitField(e.id, "jumlah", ev.target.value)} />
+                            ) : e.jumlah}
                           </td>
                           <td>
-                            <select value={e.satuan}
-                              onChange={(ev) => { updateFieldLocal(e.id, "satuan", ev.target.value); commitField(e.id, "satuan", ev.target.value); }}>
-                              {SATUAN_OPTIONS.map((s) => <option key={s} value={s}>{s}</option>)}
-                            </select>
+                            {canEdit ? (
+                              <select value={e.satuan}
+                                onChange={(ev) => { updateFieldLocal(e.id, "satuan", ev.target.value); commitField(e.id, "satuan", ev.target.value); }}>
+                                {SATUAN_OPTIONS.map((s) => <option key={s} value={s}>{s}</option>)}
+                              </select>
+                            ) : e.satuan}
                           </td>
                           <td>
-                            <input className="cell-input" value={e.mekanik}
-                              onChange={(ev) => updateFieldLocal(e.id, "mekanik", ev.target.value)}
-                              onBlur={(ev) => commitField(e.id, "mekanik", ev.target.value)} />
+                            {canEdit ? (
+                              <input className="cell-input" value={e.mekanik}
+                                onChange={(ev) => updateFieldLocal(e.id, "mekanik", ev.target.value)}
+                                onBlur={(ev) => commitField(e.id, "mekanik", ev.target.value)} />
+                            ) : e.mekanik}
                           </td>
                           <td>
                             <div className="photo-slots">
-                              <PhotoSlot label="Kondisi" value={e.fotoKondisi} onPick={(f) => attachPhoto(e.id, "kondisi", f)} onRemove={() => removePhoto(e.id, "kondisi")} />
-                              <PhotoSlot label="Pasang" value={e.fotoPasang} onPick={(f) => attachPhoto(e.id, "pasang", f)} onRemove={() => removePhoto(e.id, "pasang")} />
+                              <PhotoSlot label="Kondisi" value={e.fotoKondisi} readOnly={!canCreate}
+                                onPick={(f) => attachPhoto(e.id, "kondisi", f)}
+                                onRemove={canEdit ? () => removePhoto(e.id, "kondisi") : undefined} />
+                              <PhotoSlot label="Pasang" value={e.fotoPasang} readOnly={!canCreate}
+                                onPick={(f) => attachPhoto(e.id, "pasang", f)}
+                                onRemove={canEdit ? () => removePhoto(e.id, "pasang") : undefined} />
                             </div>
                           </td>
-                          <td>
-                            <button className="icon-btn danger" onClick={() => confirmDeleteEntry(e.id, e.namaPart)} title="Hapus baris"><Trash2 size={15} /></button>
-                          </td>
+                          {canEdit && (
+                            <td>
+                              <button className="icon-btn danger" onClick={() => confirmDeleteEntry(e.id, e.namaPart)} title="Hapus baris"><Trash2 size={15} /></button>
+                            </td>
+                          )}
                         </tr>
                       ))}
                     </tbody>
@@ -633,8 +763,8 @@ export default function App() {
                 <div className="photo-rows">
                   {lampiranEntries.map((e) => (
                     <div className="photo-row" key={e.id}>
-                      <PhotoCard entry={e} slot="kondisi" title="(BARU DAN BEKAS)" onPick={(f) => attachPhoto(e.id, "kondisi", f)} />
-                      <PhotoCard entry={e} slot="pasang" title="(PENGGANTIAN)" onPick={(f) => attachPhoto(e.id, "pasang", f)} />
+                      <PhotoCard entry={e} slot="kondisi" title="(BARU DAN BEKAS)" readOnly={!canCreate} onPick={(f) => attachPhoto(e.id, "kondisi", f)} />
+                      <PhotoCard entry={e} slot="pasang" title="(PENGGANTIAN)" readOnly={!canCreate} onPick={(f) => attachPhoto(e.id, "pasang", f)} />
                     </div>
                   ))}
                 </div>
@@ -645,6 +775,7 @@ export default function App() {
 
         {tab === "io" && (
           <main className="page no-print">
+            {canCreate && (
             <section className="card">
               <div className="card-title-row">
                 <div className="card-icon gold"><Upload size={16} /></div>
@@ -657,6 +788,7 @@ export default function App() {
                 onChange={(e) => handleImport(e.target.files?.[0])} />
               <label htmlFor="import-file" className="btn ghost"><Upload size={16} />Pilih file rekap</label>
             </section>
+            )}
 
             <section className="card">
               <div className="card-title-row">
@@ -672,6 +804,7 @@ export default function App() {
               </div>
             </section>
 
+            {role === "admin" && (
             <section className="card danger-zone">
               <div className="card-title-row">
                 <div className="card-icon rust"><RotateCcw size={16} /></div>
@@ -689,6 +822,7 @@ export default function App() {
                 </div>
               )}
             </section>
+            )}
           </main>
         )}
 
@@ -732,15 +866,17 @@ function EmptyState({ text }) {
   return <div className="empty-state"><Camera size={22} /><p>{text}</p></div>;
 }
 
-function PhotoSlot({ label, value, onPick, onRemove }) {
+function PhotoSlot({ label, value, onPick, onRemove, readOnly }) {
   const inputId = useRef(`ph-${uid()}`).current;
   return (
     <div className="photo-slot">
       {value ? (
         <div className="thumb">
           <img src={value} alt={label} referrerPolicy="no-referrer" />
-          <button className="thumb-remove" onClick={onRemove} title="Hapus foto"><X size={11} /></button>
+          {onRemove && <button className="thumb-remove" onClick={onRemove} title="Hapus foto"><X size={11} /></button>}
         </div>
+      ) : readOnly ? (
+        <div className="thumb-empty readonly" title="Belum ada foto"><Camera size={13} /></div>
       ) : (
         <>
           <input type="file" accept="image/*" id={inputId} className="file-input" onChange={(e) => onPick(e.target.files?.[0])} />
@@ -752,7 +888,7 @@ function PhotoSlot({ label, value, onPick, onRemove }) {
   );
 }
 
-function PhotoCard({ entry, slot, title, onPick }) {
+function PhotoCard({ entry, slot, title, onPick, readOnly }) {
   const value = slot === "kondisi" ? entry.fotoKondisi : entry.fotoPasang;
   const inputId = useRef(`pc-${uid()}`).current;
   return (
@@ -760,6 +896,10 @@ function PhotoCard({ entry, slot, title, onPick }) {
       <div className="photo-frame">
         {value ? (
           <img src={value} alt={entry.namaPart} referrerPolicy="no-referrer" />
+        ) : readOnly ? (
+          <div className="photo-missing no-print">
+            <div className="photo-missing-label"><Camera size={18} /><span>Belum ada foto</span></div>
+          </div>
         ) : (
           <div className="photo-missing no-print">
             <input type="file" accept="image/*" id={inputId} className="file-input" onChange={(e) => onPick(e.target.files?.[0])} />
