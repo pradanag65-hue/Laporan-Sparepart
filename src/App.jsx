@@ -427,6 +427,7 @@ export default function App() {
       {tab === "input" && (
         <main className="page no-print">
           <section className="card form-card">
+            <p className="card-kicker">Rekap harian</p>
             <div className="card-title-row">
               <div className="card-icon gold"><Plus size={16} /></div>
               <h2>Tambah data harian</h2>
@@ -539,6 +540,7 @@ export default function App() {
       {tab === "lampiran" && (
         <main className="page">
           <section className="card no-print">
+            <p className="card-kicker">Dokumentasi</p>
             <div className="card-head wrap">
               <div className="card-title-row">
                 <div className="card-icon rust"><Images size={16} /></div>
