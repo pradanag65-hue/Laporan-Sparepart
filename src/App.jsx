@@ -417,6 +417,7 @@ export default function App() {
             </button>
           ))}
         </nav>
+        <div className="header-divider" />
         <div className="stats-row no-print">
           <div className="stat-pill"><strong>{entries.length}</strong><span>Total data</span></div>
           <div className="stat-pill"><strong>{tanggalList.length}</strong><span>Tanggal tercatat</span></div>
