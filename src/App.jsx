@@ -409,7 +409,7 @@ export default function App() {
           <div className="brand-mark"><Leaf size={19} strokeWidth={2.2} /></div>
           <div>
             <h1>Rekap Barang Bekas</h1>
-            <p>Dinas Perhubungan DIY - Trans Jogja</p>
+            <p>PT AMI - Trans Jogja</p>
           </div>
         </div>
 
