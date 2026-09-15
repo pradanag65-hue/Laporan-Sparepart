@@ -37,6 +37,9 @@ function getSheet_() {
     sheet.appendRow(HEADERS);
     sheet.setFrozenRows(1);
   }
+  // Paksa kolom Tanggal (B) selalu teks biasa, supaya Sheets tidak pernah
+  // otomatis mengubahnya jadi objek Date (yang bisa bergeser tanggal karena zona waktu).
+  sheet.getRange("B2:B").setNumberFormat("@");
   return sheet;
 }
 
