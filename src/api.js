@@ -2,6 +2,7 @@
 // URL Web App disimpan di localStorage supaya bisa diganti dari UI tanpa rebuild.
 
 const STORAGE_KEY = "rekap-apps-script-url";
+const AUTH_KEY = "rekap-auth-user";
 
 // Tempel URL Web App Apps Script kamu (yang diakhiri /exec) di bawah ini.
 // Setelah diisi dan di-deploy, semua orang yang membuka situs ini otomatis
@@ -16,6 +17,23 @@ export function setApiUrl(url) {
   localStorage.setItem(STORAGE_KEY, url.trim());
 }
 
+export function getAuthUser() {
+  try {
+    const raw = localStorage.getItem(AUTH_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch (_) {
+    return null;
+  }
+}
+
+export function setAuthUser(user) {
+  localStorage.setItem(AUTH_KEY, JSON.stringify(user));
+}
+
+export function clearAuthUser() {
+  localStorage.removeItem(AUTH_KEY);
+}
+
 async function get(action, params = {}) {
   const url = new URL(getApiUrl());
   url.searchParams.set("action", action);
@@ -27,11 +45,13 @@ async function get(action, params = {}) {
 }
 
 async function post(body) {
+  const auth = getAuthUser();
+  const payload = auth && body.action !== "login" ? { ...body, token: auth.token } : body;
   const res = await fetch(getApiUrl(), {
     method: "POST",
     // text/plain menghindari CORS preflight yang tidak didukung Apps Script
     headers: { "Content-Type": "text/plain;charset=utf-8" },
-    body: JSON.stringify(body),
+    body: JSON.stringify(payload),
   });
   const data = await res.json();
   if (!data.ok) throw new Error(data.error || "Permintaan gagal");
@@ -39,6 +59,7 @@ async function post(body) {
 }
 
 export const api = {
+  login: async (username, password) => post({ action: "login", username, password }),
   listEntries: async () => (await get("list")).entries,
   addEntry: async (fields) => (await post({ action: "add", ...fields })).id,
   updateEntry: async (id, fields) => post({ action: "update", id, fields }),
