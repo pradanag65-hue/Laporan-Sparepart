@@ -560,7 +560,7 @@ export default function App() {
 
         <div className="sidebar-footer">
           <Bus size={54} strokeWidth={1.3} />
-          <p>Bersama<br />Untuk Transportasi<br />Yang Lebih Baik</p>
+          <p>TransJogja<br />Penghubung Setip<br />Cerita</p>
         </div>
       </aside>
 
