@@ -173,6 +173,10 @@ body { background: var(--surface); }
 .onboard-card input { width: 100%; font-family: inherit; font-size: 13px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; }
 .onboard-card input:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
 .login-error { font-size: 12.5px; color: var(--err); margin: -4px 0 0; }
+.reset-confirm { display: flex; flex-direction: column; gap: 10px; max-width: 360px; }
+.reset-confirm label { display: flex; flex-direction: column; gap: 6px; font-size: 12px; font-weight: 600; color: var(--ink); }
+.reset-confirm input { font-family: inherit; font-size: 13.5px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 11px; }
+.reset-confirm input:focus { outline: none; border-color: var(--err); box-shadow: 0 0 0 3px rgba(210,75,58,0.15); }
 .link-btn { background: transparent; border: none; color: var(--muted); font-size: 12px; font-family: inherit; text-decoration: underline; cursor: pointer; padding: 0; margin-top: 2px; }
 .link-btn:hover { color: var(--accent-dark); }
 .onboard-card .btn.primary { width: 100%; justify-content: center; }
@@ -216,6 +220,7 @@ body { background: var(--surface); }
 /* ---------- buttons ---------- */
 .btn { display: inline-flex; align-items: center; gap: 8px; border: 1px solid transparent; border-radius: 12px; padding: 11px 20px; font-size: 13.5px; font-weight: 700; font-family: inherit; cursor: pointer; transition: transform 0.08s ease, opacity 0.15s ease, box-shadow 0.15s ease; }
 .btn:active { transform: scale(0.98); }
+.btn:disabled { opacity: 0.55; cursor: default; transform: none; box-shadow: none; }
 .btn.primary { background: var(--accent); color: #fff; box-shadow: 0 8px 20px rgba(47,111,237,0.35); }
 .btn.primary:hover { background: var(--accent-dark); }
 .btn.ghost { background: #fff; color: var(--ink); border-color: var(--line); }
