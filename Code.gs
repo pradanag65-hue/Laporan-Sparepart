@@ -78,6 +78,18 @@ function getPhotoFolder_() {
   return DriveApp.createFolder(PHOTO_FOLDER_NAME);
 }
 
+/**
+ * Jalankan fungsi ini SEKALI secara manual dari editor Apps Script
+ * (pilih "setup" di dropdown fungsi lalu klik Run) untuk langsung
+ * membuat sheet "Entries" dan "Users" tanpa perlu buka situsnya dulu.
+ * Google akan minta izin akses saat pertama kali dijalankan — klik Allow.
+ */
+function setup() {
+  getSheet_();
+  getUsersSheet_();
+  Logger.log("Selesai. Cek sheet 'Entries' dan 'Users' di spreadsheet ini.");
+}
+
 function sheetToObjects_() {
   const sheet = getSheet_();
   const values = sheet.getDataRange().getValues();
