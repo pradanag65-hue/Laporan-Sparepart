@@ -130,6 +130,7 @@ export default function App() {
   const [resetPassword, setResetPassword] = useState("");
   const [resetError, setResetError] = useState("");
   const [backupBusy, setBackupBusy] = useState(false);
+  const [importProgress, setImportProgress] = useState(null);
   const [search, setSearch] = useState("");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
@@ -414,18 +415,37 @@ export default function App() {
         notify("Tidak ada baris yang bisa dibaca dari file ini.", "err");
         return;
       }
-      let count = 0;
-      for (const fields of fieldsList) {
-        const id = await api.addEntry(fields);
-        setEntries((prev) => [{ id, ...fields, fotoKondisi: null, fotoPasang: null }, ...prev]);
-        count++;
+
+      // Kirim per kelompok (bukan satu per satu) supaya tidak butuh ratusan
+      // request terpisah yang rawan putus di tengah jalan.
+      const CHUNK_SIZE = 150;
+      const chunks = [];
+      for (let i = 0; i < fieldsList.length; i += CHUNK_SIZE) chunks.push(fieldsList.slice(i, i + CHUNK_SIZE));
+
+      let insertedTotal = 0;
+      setImportProgress({ current: 0, total: fieldsList.length });
+      try {
+        for (const chunk of chunks) {
+          const ids = await api.addEntriesBatch(chunk);
+          const newEntries = chunk.map((fields, idx) => ({ id: ids[idx], ...fields, fotoKondisi: null, fotoPasang: null }));
+          setEntries((prev) => [...newEntries, ...prev]);
+          insertedTotal += chunk.length;
+          setImportProgress({ current: insertedTotal, total: fieldsList.length });
+        }
+        notify(`${insertedTotal} baris berhasil diimpor ke Google Sheet.`);
+      } catch (err) {
+        console.error(err);
+        handleApiError(
+          err,
+          `Impor terhenti setelah ${insertedTotal} dari ${fieldsList.length} baris (baris ke-${insertedTotal + 1} dan seterusnya belum masuk)`
+        );
       }
-      notify(`${count} baris berhasil diimpor ke Google Sheet.`);
     } catch (err) {
       console.error(err);
       handleApiError(err, "Gagal mengimpor");
     } finally {
       setBusy(false);
+      setImportProgress(null);
       if (importRef.current) importRef.current.value = "";
     }
   }
@@ -1026,6 +1046,14 @@ export default function App() {
               <input ref={importRef} type="file" accept=".csv,.xlsx,.xls" className="file-input" id="import-file"
                 onChange={(e) => handleImport(e.target.files?.[0])} />
               <label htmlFor="import-file" className="btn ghost"><Upload size={16} />Pilih file rekap</label>
+              {importProgress && (
+                <div className="import-progress">
+                  <div className="import-progress-bar">
+                    <div className="import-progress-fill" style={{ width: `${Math.round((importProgress.current / importProgress.total) * 100)}%` }} />
+                  </div>
+                  <span>Mengimpor {importProgress.current} / {importProgress.total} baris…</span>
+                </div>
+              )}
             </section>
             )}
 
