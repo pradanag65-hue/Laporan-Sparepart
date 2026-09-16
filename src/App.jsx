@@ -4,7 +4,7 @@ import {
   FileSpreadsheet, Loader2, Camera, X, ClipboardList, Leaf,
   RotateCcw, ChevronDown, Settings, Link2, CheckCircle2, Images,
   Bell, Calendar, Tag, Wrench, Barcode, Hash, Box, User, Bus,
-  LogOut, Lock, Eye,
+  LogOut, Lock, Eye, Search,
 } from "lucide-react";
 import * as XLSX from "xlsx";
 import Papa from "papaparse";
@@ -127,6 +127,7 @@ export default function App() {
   const [resetPassword, setResetPassword] = useState("");
   const [resetError, setResetError] = useState("");
   const [backupBusy, setBackupBusy] = useState(false);
+  const [search, setSearch] = useState("");
   const [showSettings, setShowSettings] = useState(false);
   const importRef = useRef(null);
 
@@ -224,6 +225,17 @@ export default function App() {
     () => sortedEntries.filter((e) => e.tanggal === lampiranDate),
     [sortedEntries, lampiranDate]
   );
+
+  const filteredEntries = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return sortedEntries;
+    return sortedEntries.filter((e) =>
+      [e.namaPart, e.kodeBarang, e.lb, e.mekanik, e.satuan, formatTanggalID(e.tanggal)]
+        .join(" ")
+        .toLowerCase()
+        .includes(q)
+    );
+  }, [sortedEntries, search]);
 
   async function addEntry() {
     if (!draft.namaPart.trim()) {
@@ -516,7 +528,7 @@ export default function App() {
           <div className="brand-mark"><Leaf size={19} strokeWidth={2.2} /></div>
           <div>
             <h1>Rekap Barang Bekas</h1>
-            <p>PT AMI - Trans Jogja</p>
+            <p>Dinas Perhubungan DIY - Trans Jogja</p>
           </div>
         </div>
 
@@ -560,7 +572,7 @@ export default function App() {
 
         <div className="sidebar-footer">
           <Bus size={54} strokeWidth={1.3} />
-          <p>TransJogja<br />Penghubung<br />Setiap Cerita</p>
+          <p>Bersama<br />Untuk Transportasi<br />Yang Lebih Baik</p>
         </div>
       </aside>
 
@@ -578,7 +590,7 @@ export default function App() {
           <div className="hero-blobs" aria-hidden="true"><span className="blob b1" /><span className="blob b2" /><span className="blob b3" /></div>
           <p className="hero-kicker">Selamat Datang</p>
           <h2>{activeNav ? activeNav.label : "Rekap Barang Bekas"}</h2>
-          <p className="hero-sub">PT AMI - Trans Jogja</p>
+          <p className="hero-sub">Dinas Perhubungan DIY - Trans Jogja</p>
         </div>
 
         {tab === "input" && (
@@ -646,7 +658,7 @@ export default function App() {
             )}
 
             <section className="card">
-              <div className="card-head">
+              <div className="card-head wrap">
                 <div className="card-title-row">
                   <div className="card-icon"><ClipboardList size={16} /></div>
                   <div>
@@ -654,10 +666,26 @@ export default function App() {
                     <p className="card-desc">Data yang sudah tersimpan akan muncul di sini.</p>
                   </div>
                 </div>
-                <span className="count-pill">{entries.length} baris</span>
+                <div className="table-toolbar">
+                  <div className="search-wrap">
+                    <Search size={14} className="search-icon" />
+                    <input
+                      type="text"
+                      placeholder="Cari nama part, kode, LB, atau mekanik…"
+                      value={search}
+                      onChange={(e) => setSearch(e.target.value)}
+                    />
+                    {search && (
+                      <button className="search-clear" onClick={() => setSearch("")} title="Bersihkan pencarian"><X size={13} /></button>
+                    )}
+                  </div>
+                  <span className="count-pill">{filteredEntries.length} / {entries.length} baris</span>
+                </div>
               </div>
               {!entries.length ? (
                 <EmptyState text="Belum ada data. Tambahkan lewat form di atas atau impor file rekap." />
+              ) : !filteredEntries.length ? (
+                <EmptyState text={`Tidak ada data yang cocok dengan "${search}".`} />
               ) : (
                 <div className="table-wrap">
                   <table>
@@ -668,7 +696,7 @@ export default function App() {
                       </tr>
                     </thead>
                     <tbody>
-                      {sortedEntries.map((e) => (
+                      {filteredEntries.map((e) => (
                         <tr key={e.id}>
                           <td>
                             {canEdit ? (
