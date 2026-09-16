@@ -35,6 +35,17 @@ body { background: var(--surface); }
   height: 100vh;
   overflow-y: auto;
 }
+.sidebar::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.09;
+  mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='90' height='90'><defs><pattern id='parang' width='90' height='90' patternTransform='rotate(45)' patternUnits='userSpaceOnUse'><path d='M-10 15 Q12 -5 34 15 T78 15' stroke='white' stroke-width='2.4' fill='none'/><path d='M-10 55 Q12 35 34 55 T78 55' stroke='white' stroke-width='2.4' fill='none'/><circle cx='12' cy='15' r='2.6' fill='white'/><circle cx='56' cy='55' r='2.6' fill='white'/><circle cx='34' cy='35' r='1.6' fill='white'/></pattern></defs><rect width='100%' height='100%' fill='url(%23parang)'/></svg>");
+  background-repeat: repeat;
+}
+.sidebar > * { position: relative; z-index: 1; }
 .sidebar-brand { display: flex; align-items: flex-start; gap: 10px; margin-bottom: 26px; }
 .sidebar-brand h1 { font-family: 'Space Grotesk', sans-serif; font-size: 15.5px; font-weight: 700; margin: 2px 0 0; letter-spacing: -0.01em; color: #fff; }
 .sidebar-brand p { margin: 2px 0 0; font-size: 10.5px; color: #93a8dd; line-height: 1.4; }
