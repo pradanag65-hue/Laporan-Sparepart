@@ -124,6 +124,9 @@ export default function App() {
   const [toast, setToast] = useState(null);
   const [busy, setBusy] = useState(false);
   const [confirmReset, setConfirmReset] = useState(false);
+  const [resetPassword, setResetPassword] = useState("");
+  const [resetError, setResetError] = useState("");
+  const [backupBusy, setBackupBusy] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const importRef = useRef(null);
 
@@ -367,16 +370,34 @@ export default function App() {
   }
 
   async function resetAll() {
+    if (!resetPassword) {
+      setResetError("Masukkan ulang password admin untuk konfirmasi.");
+      return;
+    }
     setBusy(true);
+    setResetError("");
     try {
-      for (const e of entries) await api.deleteEntry(e.id);
+      const backupSheet = await api.resetAll(resetPassword);
       setEntries([]);
-      notify("Semua data direset.");
+      notify(`Semua data direset. Cadangan tersimpan di sheet "${backupSheet}".`);
+      setConfirmReset(false);
+      setResetPassword("");
     } catch (err) {
-      handleApiError(err, "Gagal mereset data");
+      setResetError(err.message || "Gagal mereset data.");
     } finally {
       setBusy(false);
-      setConfirmReset(false);
+    }
+  }
+
+  async function backupNow() {
+    setBackupBusy(true);
+    try {
+      const backupSheet = await api.backupNow();
+      notify(`Cadangan dibuat: sheet "${backupSheet}".`);
+    } catch (err) {
+      handleApiError(err, "Gagal membuat cadangan");
+    } finally {
+      setBackupBusy(false);
     }
   }
 
@@ -805,20 +826,50 @@ export default function App() {
             </section>
 
             {role === "admin" && (
+            <section className="card">
+              <div className="card-title-row">
+                <div className="card-icon"><Box size={16} /></div>
+                <div>
+                  <h2>Cadangan data</h2>
+                  <p className="card-desc">Menyalin seluruh sheet "Entries" apa adanya ke sheet baru bertanda waktu, tanpa mengubah data yang aktif.</p>
+                </div>
+              </div>
+              <button className="btn ghost" onClick={backupNow} disabled={backupBusy}>
+                {backupBusy ? <Loader2 size={16} className="spin" /> : <Download size={16} />}
+                Buat cadangan sekarang
+              </button>
+            </section>
+            )}
+
+            {role === "admin" && (
             <section className="card danger-zone">
               <div className="card-title-row">
                 <div className="card-icon rust"><RotateCcw size={16} /></div>
                 <div>
                   <h2>Reset data</h2>
-                  <p className="card-desc">Menghapus seluruh baris rekap di Google Sheet. Tidak bisa dibatalkan.</p>
+                  <p className="card-desc">Menghapus seluruh baris rekap di Google Sheet (cadangan otomatis dibuat dulu). Butuh konfirmasi ulang password, tidak bisa dibatalkan setelah dijalankan.</p>
                 </div>
               </div>
               {!confirmReset ? (
                 <button className="btn ghost danger" onClick={() => setConfirmReset(true)}><RotateCcw size={16} />Reset semua data</button>
               ) : (
-                <div className="btn-row">
-                  <button className="btn danger" onClick={resetAll}>Ya, hapus semuanya</button>
-                  <button className="btn ghost" onClick={() => setConfirmReset(false)}>Batal</button>
+                <div className="reset-confirm">
+                  <label>
+                    <span>Masukkan ulang password admin untuk konfirmasi</span>
+                    <input
+                      type="password"
+                      value={resetPassword}
+                      onChange={(e) => { setResetPassword(e.target.value); setResetError(""); }}
+                      onKeyDown={(e) => e.key === "Enter" && resetAll()}
+                      placeholder="Password"
+                      autoFocus
+                    />
+                  </label>
+                  {resetError && <p className="login-error">{resetError}</p>}
+                  <div className="btn-row">
+                    <button className="btn danger" onClick={resetAll} disabled={!resetPassword}>Ya, hapus semuanya</button>
+                    <button className="btn ghost" onClick={() => { setConfirmReset(false); setResetPassword(""); setResetError(""); }}>Batal</button>
+                  </div>
                 </div>
               )}
             </section>
