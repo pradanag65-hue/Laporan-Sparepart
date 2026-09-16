@@ -277,7 +277,7 @@ table input[type="date"]:hover { border-color: var(--line); background: #fff; }
 
 .photo-rows { display: flex; flex-direction: column; gap: 14px; }
 .photo-row { display: flex; gap: 14px; break-inside: avoid; page-break-inside: avoid; }
-.photo-row .photo-card { flex: 1 1 0; min-width: 0; }
+.photo-row .photo-card { flex: 0 0 calc(50% - 7px); max-width: calc(50% - 7px); min-width: 0; }
 
 .photo-card { margin: 0; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; background: #fff; break-inside: avoid; }
 .photo-frame { position: relative; aspect-ratio: 4 / 3; background: var(--surface-2); }
@@ -332,6 +332,7 @@ table input[type="date"]:hover { border-color: var(--line); background: #fff; }
   .form-grid { grid-template-columns: repeat(2, 1fr); }
   .form-grid .col-2 { grid-column: span 2; }
   .photo-row { flex-direction: column; }
+  .photo-row .photo-card { flex-basis: auto; max-width: 100%; }
   .grid-columns-head { flex-direction: column; gap: 4px; }
   .hero-banner { margin: 14px 14px 0; padding: 24px 20px 32px; }
   .hero-banner h2 { font-size: 24px; }
