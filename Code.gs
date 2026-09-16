@@ -182,6 +182,28 @@ function login_(username, password) {
   return { ok: false, error: "Username atau password salah." };
 }
 
+// Cek ulang password (dipakai sebagai langkah persetujuan sebelum reset).
+function verifyPassword_(username, password) {
+  const sheet = getUsersSheet_();
+  const values = sheet.getDataRange().getValues();
+  for (let i = 1; i < values.length; i++) {
+    const [u, p] = values[i];
+    if (String(u).trim() === String(username).trim() && String(p) === String(password)) return true;
+  }
+  return false;
+}
+
+// Menyalin sheet "Entries" apa adanya jadi sheet baru bernama Backup_<tanggal_jam>.
+function backupEntriesSheet_() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = getSheet_();
+  const stamp = Utilities.formatDate(new Date(), Session.getScriptTimeZone() || "Asia/Jakarta", "yyyyMMdd_HHmmss");
+  const name = ("Backup_" + stamp).slice(0, 90);
+  const copy = sheet.copyTo(ss);
+  copy.setName(name);
+  return name;
+}
+
 // Melempar error kalau token tidak valid / rolenya tidak diizinkan.
 function requireRole_(token, allowedRoles) {
   const auth = verifyToken_(token);
@@ -297,6 +319,25 @@ function doPost(e) {
       const col = body.slot === "kondisi" ? 9 : 10;
       sheet.getRange(row, col).setValue("");
       return jsonOut_({ ok: true });
+    }
+
+    if (action === "backup") {
+      requireRole_(body.token, ["admin"]);
+      const backupSheet = backupEntriesSheet_();
+      return jsonOut_({ ok: true, backupSheet: backupSheet });
+    }
+
+    if (action === "resetAll") {
+      const auth = requireRole_(body.token, ["admin"]);
+      if (!verifyPassword_(auth.username, body.password || "")) {
+        return jsonOut_({ ok: false, error: "Password salah, reset dibatalkan." });
+      }
+      const backupSheet = backupEntriesSheet_();
+      const lastRow = sheet.getLastRow();
+      if (lastRow > 1) {
+        sheet.getRange(2, 1, lastRow - 1, HEADERS.length).clearContent();
+      }
+      return jsonOut_({ ok: true, backupSheet: backupSheet });
     }
 
     return jsonOut_({ ok: false, error: "Aksi tidak dikenal: " + action });
