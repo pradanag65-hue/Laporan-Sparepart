@@ -370,6 +370,28 @@ function doPost(e) {
       return jsonOut_({ ok: true, id: id });
     }
 
+    // Impor banyak baris sekaligus dalam satu request (dipakai fitur Impor CSV/XLSX)
+    // supaya tidak perlu ratusan request terpisah yang rawan putus di tengah jalan.
+    if (action === "addBatch") {
+      const auth = requireRole_(body.token, ["admin", "input"]);
+      const rows = Array.isArray(body.rows) ? body.rows : [];
+      if (!rows.length) return jsonOut_({ ok: false, error: "Tidak ada baris untuk diimpor." });
+      const now = new Date();
+      const ids = [];
+      const matrix = rows.map((r) => {
+        const id = Utilities.getUuid();
+        ids.push(id);
+        return [
+          id, r.tanggal || "", r.lb || "", r.namaPart || "", r.kodeBarang || "",
+          r.jumlah || "", r.satuan || "", r.mekanik || "", "", "", now,
+        ];
+      });
+      const startRow = sheet.getLastRow() + 1;
+      sheet.getRange(startRow, 1, matrix.length, HEADERS.length).setValues(matrix);
+      logActivity_(auth.username, auth.role, "addBatch", "Impor " + matrix.length + " baris sekaligus");
+      return jsonOut_({ ok: true, ids: ids, count: matrix.length });
+    }
+
     if (action === "update") {
       const auth = requireRole_(body.token, ["admin"]);
       const row = findRowById_(sheet, body.id);
