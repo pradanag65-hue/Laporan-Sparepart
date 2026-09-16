@@ -495,7 +495,7 @@ export default function App() {
           <div className="brand-mark"><Leaf size={19} strokeWidth={2.2} /></div>
           <div>
             <h1>Rekap Barang Bekas</h1>
-            <p>PT AMI - Trans Jogja</p>
+            <p>Dinas Perhubungan DIY - Trans Jogja</p>
           </div>
         </div>
 
@@ -557,7 +557,7 @@ export default function App() {
           <div className="hero-blobs" aria-hidden="true"><span className="blob b1" /><span className="blob b2" /><span className="blob b3" /></div>
           <p className="hero-kicker">Selamat Datang</p>
           <h2>{activeNav ? activeNav.label : "Rekap Barang Bekas"}</h2>
-          <p className="hero-sub">PT AMI - Trans Jogja</p>
+          <p className="hero-sub">Dinas Perhubungan DIY - Trans Jogja</p>
         </div>
 
         {tab === "input" && (
