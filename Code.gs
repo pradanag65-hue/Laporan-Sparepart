@@ -1,49 +1,47 @@
 /**
  * REKAP BARANG BEKAS — backend Apps Script
  * -----------------------------------------
- * Database: sheet "Entries" + sheet "Users" (akun login) di spreadsheet
- *           yang sama dengan script ini (bikin script ini lewat
- *           Extensions > Apps Script di dalam Google Sheet-nya).
- * Foto    : disimpan sebagai file di folder Drive "RekapBarangBekas_Foto",
- *           URL publik-nya disimpan di kolom FotoKondisiURL / FotoPasangURL.
+ * Sheet dipakai (dibuat otomatis): Entries, Users, ActivityLog, Config.
+ * Foto disimpan di folder Drive "RekapBarangBekas_Foto".
  *
  * PERAN AKUN (kolom Role di sheet "Users"):
- *  - admin : akses penuh (lihat, tambah, edit, hapus, reset)
- *  - input : cuma bisa menambah data baru + lampirkan foto miliknya sendiri,
- *            tidak bisa mengedit atau menghapus data yang sudah tersimpan
- *  - guest : cuma bisa melihat data, tidak bisa menambah/mengedit/menghapus
+ *  - admin : akses penuh + kelola akun + log aktivitas + reset/backup
+ *  - input : cuma bisa menambah data baru + lampirkan foto
+ *  - guest : cuma bisa melihat data
  *
  * CARA DEPLOY:
- * 1. Buka Google Sheet baru, kasih nama mis. "Rekap Barang Bekas - DB".
- * 2. Extensions > Apps Script, hapus isi default, tempel seluruh isi file ini.
- * 3. GANTI nilai SECRET di bawah dengan teks acak milikmu sendiri (jangan
- *    dibiarkan nilai default) — ini dipakai untuk menandatangani sesi login.
- * 4. Deploy > New deployment > pilih tipe "Web app".
- *    - Execute as: Me
- *    - Who has access: Anyone
- * 5. Klik Deploy, izinkan akses (authorize) saat diminta.
- * 6. Copy URL Web App yang muncul (diakhiri /exec) — itu yang dipakai
- *    di pengaturan aplikasi frontend.
- * 7. Buka sheet "Users" yang otomatis terbuat, akan ada 1 baris akun admin
- *    default: username "admin", password "admin123", role "admin".
- *    SEGERA GANTI password itu, dan tambah baris akun lain (role: admin /
- *    input / guest) sesuai kebutuhan tim kamu.
- * 8. Setiap kali code ini diubah, buat "New deployment" lagi (atau Manage
- *    deployments > edit > New version) supaya perubahan aktif.
+ * 1. Buka Google Sheet baru. Extensions > Apps Script, tempel seluruh isi file ini.
+ * 2. GANTI nilai SECRET di bawah dengan teks acak milikmu sendiri.
+ * 3. Jalankan fungsi "setup" sekali dari editor (dropdown fungsi > setup > Run),
+ *    izinkan akses saat diminta. Ini langsung membuat semua sheet yang dibutuhkan.
+ * 4. Deploy > New deployment > Web app. Execute as: Me. Who has access: Anyone.
+ * 5. Copy URL /exec, pasang di aplikasi frontend.
+ * 6. Buka sheet "Users", ganti password admin default (admin/admin123).
+ * 7. (Opsional) Buka sheet "Config", isi kolom Value untuk baris "NotifyEmail"
+ *    dengan alamat email yang ingin menerima notifikasi saat data direset.
+ * 8. Setiap ubah kode ini, buat "New version" lewat Manage deployments.
  */
 
 const SHEET_NAME = "Entries";
 const USERS_SHEET_NAME = "Users";
+const LOG_SHEET_NAME = "ActivityLog";
+const CONFIG_SHEET_NAME = "Config";
 const PHOTO_FOLDER_NAME = "RekapBarangBekas_Foto";
 const HEADERS = [
   "ID", "Tanggal", "LB", "NamaPart", "KodeBarang", "Jumlah",
   "Satuan", "Mekanik", "FotoKondisiURL", "FotoPasangURL", "CreatedAt",
 ];
 const USER_HEADERS = ["Username", "Password", "Role"];
+const LOG_HEADERS = ["Timestamp", "Username", "Role", "Action", "Detail"];
+const CONFIG_HEADERS = ["Key", "Value"];
+const ROLES = ["admin", "input", "guest"];
 
 // GANTI dengan teks acak milikmu sendiri sebelum deploy!
 const SECRET = "GANTI-DENGAN-TEKS-RAHASIA-ACAK-MILIKMU";
 const TOKEN_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000; // 30 hari
+const LOG_MAX_ROWS = 500; // baris log lama otomatis dipangkas melebihi ini
+
+// ---------------- sheets ----------------
 
 function getSheet_() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
@@ -53,8 +51,6 @@ function getSheet_() {
     sheet.appendRow(HEADERS);
     sheet.setFrozenRows(1);
   }
-  // Paksa kolom Tanggal (B) selalu teks biasa, supaya Sheets tidak pernah
-  // otomatis mengubahnya jadi objek Date (yang bisa bergeser tanggal karena zona waktu).
   sheet.getRange("B2:B").setNumberFormat("@");
   return sheet;
 }
@@ -66,8 +62,30 @@ function getUsersSheet_() {
   if (sheet.getLastRow() === 0) {
     sheet.appendRow(USER_HEADERS);
     sheet.setFrozenRows(1);
-    // Akun admin default supaya bisa login pertama kali — SEGERA GANTI.
-    sheet.appendRow(["admin", "admin123", "admin"]);
+    sheet.appendRow(["admin", "admin123", "admin"]); // SEGERA GANTI
+  }
+  return sheet;
+}
+
+function getLogSheet_() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let sheet = ss.getSheetByName(LOG_SHEET_NAME);
+  if (!sheet) sheet = ss.insertSheet(LOG_SHEET_NAME);
+  if (sheet.getLastRow() === 0) {
+    sheet.appendRow(LOG_HEADERS);
+    sheet.setFrozenRows(1);
+  }
+  return sheet;
+}
+
+function getConfigSheet_() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let sheet = ss.getSheetByName(CONFIG_SHEET_NAME);
+  if (!sheet) sheet = ss.insertSheet(CONFIG_SHEET_NAME);
+  if (sheet.getLastRow() === 0) {
+    sheet.appendRow(CONFIG_HEADERS);
+    sheet.setFrozenRows(1);
+    sheet.appendRow(["NotifyEmail", ""]);
   }
   return sheet;
 }
@@ -79,15 +97,15 @@ function getPhotoFolder_() {
 }
 
 /**
- * Jalankan fungsi ini SEKALI secara manual dari editor Apps Script
- * (pilih "setup" di dropdown fungsi lalu klik Run) untuk langsung
- * membuat sheet "Entries" dan "Users" tanpa perlu buka situsnya dulu.
- * Google akan minta izin akses saat pertama kali dijalankan — klik Allow.
+ * Jalankan SEKALI secara manual dari editor Apps Script untuk langsung
+ * membuat semua sheet yang dibutuhkan tanpa perlu buka situsnya dulu.
  */
 function setup() {
   getSheet_();
   getUsersSheet_();
-  Logger.log("Selesai. Cek sheet 'Entries' dan 'Users' di spreadsheet ini.");
+  getLogSheet_();
+  getConfigSheet_();
+  Logger.log("Selesai. Cek sheet Entries, Users, ActivityLog, Config.");
 }
 
 function sheetToObjects_() {
@@ -97,7 +115,7 @@ function sheetToObjects_() {
   const rows = [];
   for (let i = 1; i < values.length; i++) {
     const row = values[i];
-    if (!row[0]) continue; // skip baris kosong
+    if (!row[0]) continue;
     const obj = {};
     headers.forEach((h, idx) => (obj[h] = row[idx]));
     rows.push({
@@ -128,7 +146,15 @@ function formatDate_(val) {
 function findRowById_(sheet, id) {
   const values = sheet.getDataRange().getValues();
   for (let i = 1; i < values.length; i++) {
-    if (String(values[i][0]) === String(id)) return i + 1; // 1-based row number
+    if (String(values[i][0]) === String(id)) return i + 1;
+  }
+  return -1;
+}
+
+function findUserRow_(sheet, username) {
+  const values = sheet.getDataRange().getValues();
+  for (let i = 1; i < values.length; i++) {
+    if (String(values[i][0]).trim().toLowerCase() === String(username).trim().toLowerCase()) return i + 1;
   }
   return -1;
 }
@@ -137,6 +163,79 @@ function jsonOut_(obj) {
   return ContentService.createTextOutput(JSON.stringify(obj)).setMimeType(
     ContentService.MimeType.JSON
   );
+}
+
+// ---------------- activity log ----------------
+
+function logActivity_(username, role, action, detail) {
+  try {
+    const sheet = getLogSheet_();
+    sheet.appendRow([new Date(), username || "", role || "", action || "", detail || ""]);
+    const last = sheet.getLastRow();
+    if (last > LOG_MAX_ROWS + 1) {
+      sheet.deleteRows(2, last - LOG_MAX_ROWS - 1); // buang baris terlama, sisakan LOG_MAX_ROWS
+    }
+  } catch (err) {
+    // jangan sampai kegagalan logging menggagalkan aksi utama
+  }
+}
+
+function listActivity_() {
+  const sheet = getLogSheet_();
+  const values = sheet.getDataRange().getValues();
+  const rows = [];
+  for (let i = 1; i < values.length; i++) {
+    const [ts, username, role, action, detail] = values[i];
+    rows.push({
+      timestamp: ts instanceof Date ? ts.toISOString() : String(ts),
+      username: String(username || ""),
+      role: String(role || ""),
+      action: String(action || ""),
+      detail: String(detail || ""),
+    });
+  }
+  return rows.reverse(); // terbaru duluan
+}
+
+// ---------------- config ----------------
+
+function getConfig_(key) {
+  const sheet = getConfigSheet_();
+  const values = sheet.getDataRange().getValues();
+  for (let i = 1; i < values.length; i++) {
+    if (String(values[i][0]).trim() === key) return String(values[i][1] || "");
+  }
+  return "";
+}
+
+function setConfig_(key, value) {
+  const sheet = getConfigSheet_();
+  const values = sheet.getDataRange().getValues();
+  for (let i = 1; i < values.length; i++) {
+    if (String(values[i][0]).trim() === key) {
+      sheet.getRange(i + 1, 2).setValue(value);
+      return;
+    }
+  }
+  sheet.appendRow([key, value]);
+}
+
+function sendResetNotification_(byUsername, backupSheet) {
+  try {
+    const email = getConfig_("NotifyEmail");
+    if (!email) return;
+    MailApp.sendEmail({
+      to: email,
+      subject: "Rekap Barang Bekas — Data direset",
+      body:
+        "Reset data dilakukan oleh: " + byUsername + "\n" +
+        "Waktu: " + new Date().toString() + "\n" +
+        "Cadangan otomatis tersimpan di sheet: " + backupSheet + "\n\n" +
+        "Kalau ini bukan kamu yang melakukan, segera cek sheet Users dan ganti semua password.",
+    });
+  } catch (err) {
+    // kuota MailApp habis atau error lain — jangan gagalkan proses reset
+  }
 }
 
 // ---------------- auth ----------------
@@ -153,7 +252,6 @@ function signToken_(username, role) {
   return payloadB64 + "." + sigB64;
 }
 
-// Mengembalikan {username, role} kalau valid, atau null kalau tidak.
 function verifyToken_(token) {
   try {
     if (!token || token.indexOf(".") === -1) return null;
@@ -176,13 +274,15 @@ function login_(username, password) {
   for (let i = 1; i < values.length; i++) {
     const [u, p, role] = values[i];
     if (String(u).trim() === String(username).trim() && String(p) === String(password)) {
-      return { ok: true, username: String(u).trim(), role: String(role).trim().toLowerCase(), token: signToken_(String(u).trim(), String(role).trim().toLowerCase()) };
+      const cleanUser = String(u).trim();
+      const cleanRole = String(role).trim().toLowerCase();
+      logActivity_(cleanUser, cleanRole, "login", "Login berhasil");
+      return { ok: true, username: cleanUser, role: cleanRole, token: signToken_(cleanUser, cleanRole) };
     }
   }
   return { ok: false, error: "Username atau password salah." };
 }
 
-// Cek ulang password (dipakai sebagai langkah persetujuan sebelum reset).
 function verifyPassword_(username, password) {
   const sheet = getUsersSheet_();
   const values = sheet.getDataRange().getValues();
@@ -193,7 +293,6 @@ function verifyPassword_(username, password) {
   return false;
 }
 
-// Menyalin sheet "Entries" apa adanya jadi sheet baru bernama Backup_<tanggal_jam>.
 function backupEntriesSheet_() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const sheet = getSheet_();
@@ -204,7 +303,6 @@ function backupEntriesSheet_() {
   return name;
 }
 
-// Melempar error kalau token tidak valid / rolenya tidak diizinkan.
 function requireRole_(token, allowedRoles) {
   const auth = verifyToken_(token);
   if (!auth) throw new Error("Sesi tidak valid atau sudah habis, silakan login ulang.");
@@ -214,7 +312,28 @@ function requireRole_(token, allowedRoles) {
   return auth;
 }
 
-// ---- GET: baca data (semua peran yang sudah login boleh baca) ----
+// ---------------- user management (admin) ----------------
+
+function listUsers_() {
+  const sheet = getUsersSheet_();
+  const values = sheet.getDataRange().getValues();
+  const rows = [];
+  for (let i = 1; i < values.length; i++) {
+    rows.push({ username: String(values[i][0]), role: String(values[i][2]).toLowerCase() });
+  }
+  return rows;
+}
+
+function countAdmins_(sheet) {
+  const values = sheet.getDataRange().getValues();
+  let n = 0;
+  for (let i = 1; i < values.length; i++) {
+    if (String(values[i][2]).trim().toLowerCase() === "admin") n++;
+  }
+  return n;
+}
+
+// ---- GET: baca data rekap (dipakai semua peran yang sudah login) ----
 function doGet(e) {
   const action = (e.parameter && e.parameter.action) || "list";
   try {
@@ -227,7 +346,7 @@ function doGet(e) {
   }
 }
 
-// ---- POST: login serta tulis data (add / update / delete / uploadPhoto) ----
+// ---- POST: login serta semua aksi tulis/baca yang butuh otorisasi ----
 function doPost(e) {
   try {
     const body = JSON.parse(e.postData.contents || "{}");
@@ -240,50 +359,46 @@ function doPost(e) {
     const sheet = getSheet_();
 
     if (action === "add") {
-      requireRole_(body.token, ["admin", "input"]);
+      const auth = requireRole_(body.token, ["admin", "input"]);
       const id = Utilities.getUuid();
       const now = new Date();
       sheet.appendRow([
-        id,
-        body.tanggal || "",
-        body.lb || "",
-        body.namaPart || "",
-        body.kodeBarang || "",
-        body.jumlah || "",
-        body.satuan || "",
-        body.mekanik || "",
-        "",
-        "",
-        now,
+        id, body.tanggal || "", body.lb || "", body.namaPart || "", body.kodeBarang || "",
+        body.jumlah || "", body.satuan || "", body.mekanik || "", "", "", now,
       ]);
+      logActivity_(auth.username, auth.role, "add", "Tambah: " + (body.namaPart || "-") + " (LB " + (body.lb || "-") + ")");
       return jsonOut_({ ok: true, id: id });
     }
 
     if (action === "update") {
-      requireRole_(body.token, ["admin"]);
+      const auth = requireRole_(body.token, ["admin"]);
       const row = findRowById_(sheet, body.id);
       if (row === -1) return jsonOut_({ ok: false, error: "ID tidak ditemukan" });
-      const fieldToCol = {
-        tanggal: 2, lb: 3, namaPart: 4, kodeBarang: 5,
-        jumlah: 6, satuan: 7, mekanik: 8,
-      };
+      const fieldToCol = { tanggal: 2, lb: 3, namaPart: 4, kodeBarang: 5, jumlah: 6, satuan: 7, mekanik: 8 };
+      const changed = [];
       Object.keys(body.fields || {}).forEach((key) => {
         const col = fieldToCol[key];
-        if (col) sheet.getRange(row, col).setValue(body.fields[key]);
+        if (col) {
+          sheet.getRange(row, col).setValue(body.fields[key]);
+          changed.push(key);
+        }
       });
+      logActivity_(auth.username, auth.role, "update", "Edit id=" + body.id + " field=" + changed.join(","));
       return jsonOut_({ ok: true });
     }
 
     if (action === "delete") {
-      requireRole_(body.token, ["admin"]);
+      const auth = requireRole_(body.token, ["admin"]);
       const row = findRowById_(sheet, body.id);
       if (row === -1) return jsonOut_({ ok: false, error: "ID tidak ditemukan" });
+      const namaPart = sheet.getRange(row, 4).getValue();
       sheet.deleteRow(row);
+      logActivity_(auth.username, auth.role, "delete", "Hapus: " + namaPart + " (id=" + body.id + ")");
       return jsonOut_({ ok: true });
     }
 
     if (action === "uploadPhoto") {
-      requireRole_(body.token, ["admin", "input"]);
+      const auth = requireRole_(body.token, ["admin", "input"]);
       const row = findRowById_(sheet, body.id);
       if (row === -1) return jsonOut_({ ok: false, error: "ID tidak ditemukan" });
 
@@ -297,7 +412,6 @@ function doPost(e) {
       const blob = Utilities.newBlob(bytes, mime, fileName);
 
       const folder = getPhotoFolder_();
-      // hapus file lama dengan nama sama kalau ada, supaya tidak menumpuk
       const existing = folder.getFilesByName(fileName);
       while (existing.hasNext()) existing.next().setTrashed(true);
 
@@ -306,24 +420,26 @@ function doPost(e) {
       const fileId = file.getId();
       const publicUrl = `https://lh3.googleusercontent.com/d/${fileId}`;
 
-      const col = body.slot === "kondisi" ? 9 : 10; // FotoKondisiURL / FotoPasangURL
+      const col = body.slot === "kondisi" ? 9 : 10;
       sheet.getRange(row, col).setValue(publicUrl);
-
+      logActivity_(auth.username, auth.role, "uploadPhoto", "Unggah foto " + body.slot + " id=" + body.id);
       return jsonOut_({ ok: true, url: publicUrl });
     }
 
     if (action === "removePhoto") {
-      requireRole_(body.token, ["admin"]);
+      const auth = requireRole_(body.token, ["admin"]);
       const row = findRowById_(sheet, body.id);
       if (row === -1) return jsonOut_({ ok: false, error: "ID tidak ditemukan" });
       const col = body.slot === "kondisi" ? 9 : 10;
       sheet.getRange(row, col).setValue("");
+      logActivity_(auth.username, auth.role, "removePhoto", "Hapus foto " + body.slot + " id=" + body.id);
       return jsonOut_({ ok: true });
     }
 
     if (action === "backup") {
-      requireRole_(body.token, ["admin"]);
+      const auth = requireRole_(body.token, ["admin"]);
       const backupSheet = backupEntriesSheet_();
+      logActivity_(auth.username, auth.role, "backup", "Backup manual: " + backupSheet);
       return jsonOut_({ ok: true, backupSheet: backupSheet });
     }
 
@@ -337,7 +453,87 @@ function doPost(e) {
       if (lastRow > 1) {
         sheet.getRange(2, 1, lastRow - 1, HEADERS.length).clearContent();
       }
+      logActivity_(auth.username, auth.role, "resetAll", "RESET SEMUA DATA. Backup: " + backupSheet);
+      sendResetNotification_(auth.username, backupSheet);
       return jsonOut_({ ok: true, backupSheet: backupSheet });
+    }
+
+    // ---- log aktivitas (admin) ----
+    if (action === "listActivity") {
+      requireRole_(body.token, ["admin"]);
+      return jsonOut_({ ok: true, logs: listActivity_() });
+    }
+
+    // ---- kelola akun (admin) ----
+    if (action === "listUsers") {
+      requireRole_(body.token, ["admin"]);
+      return jsonOut_({ ok: true, users: listUsers_() });
+    }
+
+    if (action === "addUser") {
+      const auth = requireRole_(body.token, ["admin"]);
+      const username = String(body.username || "").trim();
+      const password = String(body.password || "");
+      const role = String(body.role || "").trim().toLowerCase();
+      if (!username || !password) return jsonOut_({ ok: false, error: "Username dan password wajib diisi." });
+      if (ROLES.indexOf(role) === -1) return jsonOut_({ ok: false, error: "Role tidak valid." });
+      const usersSheet = getUsersSheet_();
+      if (findUserRow_(usersSheet, username) !== -1) return jsonOut_({ ok: false, error: "Username sudah dipakai." });
+      usersSheet.appendRow([username, password, role]);
+      logActivity_(auth.username, auth.role, "addUser", "Tambah akun: " + username + " (" + role + ")");
+      return jsonOut_({ ok: true });
+    }
+
+    if (action === "updateUser") {
+      const auth = requireRole_(body.token, ["admin"]);
+      const username = String(body.username || "").trim();
+      const usersSheet = getUsersSheet_();
+      const row = findUserRow_(usersSheet, username);
+      if (row === -1) return jsonOut_({ ok: false, error: "Akun tidak ditemukan." });
+      const fields = body.fields || {};
+      if (fields.role) {
+        const role = String(fields.role).trim().toLowerCase();
+        if (ROLES.indexOf(role) === -1) return jsonOut_({ ok: false, error: "Role tidak valid." });
+        if (role !== "admin" && String(usersSheet.getRange(row, 3).getValue()).toLowerCase() === "admin" && countAdmins_(usersSheet) <= 1) {
+          return jsonOut_({ ok: false, error: "Tidak bisa mengubah role admin terakhir." });
+        }
+        usersSheet.getRange(row, 3).setValue(role);
+      }
+      if (fields.password) {
+        usersSheet.getRange(row, 2).setValue(String(fields.password));
+      }
+      logActivity_(auth.username, auth.role, "updateUser", "Update akun: " + username + " (" + Object.keys(fields).join(",") + ")");
+      return jsonOut_({ ok: true });
+    }
+
+    if (action === "deleteUser") {
+      const auth = requireRole_(body.token, ["admin"]);
+      const username = String(body.username || "").trim();
+      if (username.toLowerCase() === auth.username.toLowerCase()) {
+        return jsonOut_({ ok: false, error: "Tidak bisa menghapus akun sendiri saat sedang login." });
+      }
+      const usersSheet = getUsersSheet_();
+      const row = findUserRow_(usersSheet, username);
+      if (row === -1) return jsonOut_({ ok: false, error: "Akun tidak ditemukan." });
+      if (String(usersSheet.getRange(row, 3).getValue()).toLowerCase() === "admin" && countAdmins_(usersSheet) <= 1) {
+        return jsonOut_({ ok: false, error: "Tidak bisa menghapus admin terakhir." });
+      }
+      usersSheet.deleteRow(row);
+      logActivity_(auth.username, auth.role, "deleteUser", "Hapus akun: " + username);
+      return jsonOut_({ ok: true });
+    }
+
+    // ---- config (admin) ----
+    if (action === "getConfig") {
+      requireRole_(body.token, ["admin"]);
+      return jsonOut_({ ok: true, config: { notifyEmail: getConfig_("NotifyEmail") } });
+    }
+
+    if (action === "setConfig") {
+      const auth = requireRole_(body.token, ["admin"]);
+      if (typeof body.notifyEmail === "string") setConfig_("NotifyEmail", body.notifyEmail.trim());
+      logActivity_(auth.username, auth.role, "setConfig", "Update pengaturan notifikasi email");
+      return jsonOut_({ ok: true });
     }
 
     return jsonOut_({ ok: false, error: "Aksi tidak dikenal: " + action });
