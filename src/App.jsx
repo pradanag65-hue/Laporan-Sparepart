@@ -762,7 +762,7 @@ export default function App() {
                 </div>
                 <div className="photo-rows">
                   {lampiranEntries.map((e) => (
-                    <div className="photo-row" key={e.id}>
+                    <div className={`photo-row ${!e.fotoKondisi && !e.fotoPasang ? "print-hide-row" : ""}`} key={e.id}>
                       <PhotoCard entry={e} slot="kondisi" title="(BARU DAN BEKAS)" readOnly={!canCreate} onPick={(f) => attachPhoto(e.id, "kondisi", f)} />
                       <PhotoCard entry={e} slot="pasang" title="(PENGGANTIAN)" readOnly={!canCreate} onPick={(f) => attachPhoto(e.id, "pasang", f)} />
                     </div>
@@ -892,7 +892,7 @@ function PhotoCard({ entry, slot, title, onPick, readOnly }) {
   const value = slot === "kondisi" ? entry.fotoKondisi : entry.fotoPasang;
   const inputId = useRef(`pc-${uid()}`).current;
   return (
-    <figure className="photo-card">
+    <figure className={`photo-card ${!value ? "is-empty" : ""}`}>
       <div className="photo-frame">
         {value ? (
           <img src={value} alt={entry.namaPart} referrerPolicy="no-referrer" />
