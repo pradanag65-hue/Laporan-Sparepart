@@ -211,6 +211,37 @@ body { background: var(--surface); }
 .search-wrap input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(47,111,237,0.13); background: #fff; }
 .search-clear { position: absolute; right: 8px; width: 18px; height: 18px; border-radius: 50%; background: var(--surface-2); border: none; color: var(--muted); display: flex; align-items: center; justify-content: center; cursor: pointer; }
 .search-clear:hover { background: var(--line); }
+
+.date-range { display: flex; align-items: center; gap: 6px; }
+.date-range input[type="date"] {
+  font-family: inherit; font-size: 12px; padding: 7px 9px;
+  border: 1px solid var(--line); border-radius: 999px; background: #fbfcff; color: var(--ink);
+}
+.date-range span { color: var(--muted); font-size: 12px; }
+
+.dashboard-grid { display: grid; grid-template-columns: 1.3fr 1fr 1fr; gap: 18px; align-items: start; }
+.chart-box { margin-top: 6px; }
+.leaderboard { list-style: none; margin: 6px 0 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.leaderboard li { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 10px; background: var(--surface); }
+.leaderboard .rank { width: 20px; height: 20px; border-radius: 50%; background: var(--accent); color: #fff; font-size: 10.5px; font-weight: 700; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.leaderboard .name { flex: 1; font-size: 12.5px; font-weight: 600; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.leaderboard .count { font-size: 12px; font-weight: 700; color: var(--accent-dark); }
+
+.role-badge { font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; padding: 3px 9px; border-radius: 999px; }
+.role-badge.admin { background: #dbe8ff; color: var(--accent-dark); }
+.role-badge.input { background: #fdf1dc; color: #8a6208; }
+.role-badge.guest { background: var(--surface-2); color: var(--muted); }
+
+.user-form-grid { grid-template-columns: repeat(3, 1fr); }
+.you-tag { margin-left: 6px; font-size: 10px; font-weight: 700; color: var(--accent-dark); background: var(--surface-2); padding: 2px 7px; border-radius: 999px; text-transform: uppercase; }
+
+@media screen and (max-width: 1100px) {
+  .dashboard-grid { grid-template-columns: 1fr 1fr; }
+}
+@media screen and (max-width: 720px) {
+  .dashboard-grid { grid-template-columns: 1fr; }
+  .user-form-grid { grid-template-columns: 1fr 1fr; }
+}
 .hint { font-size: 12.5px; color: var(--muted); line-height: 1.55; margin: 6px 0 14px; max-width: 62ch; }
 
 /* ---------- form ---------- */
