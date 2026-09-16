@@ -4,22 +4,19 @@ import {
   FileSpreadsheet, Loader2, Camera, X, ClipboardList, Leaf,
   RotateCcw, ChevronDown, Settings, Link2, CheckCircle2, Images,
   Bell, Calendar, Tag, Wrench, Barcode, Hash, Box, User, Bus,
-  LogOut, Lock, Eye, Search,
+  LogOut, Lock, Eye, Search, BarChart3, History, Users, Mail,
+  UserPlus, ShieldCheck, KeyRound,
 } from "lucide-react";
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
 import * as XLSX from "xlsx";
 import Papa from "papaparse";
 import { api, getApiUrl, setApiUrl, getAuthUser, setAuthUser, clearAuthUser } from "./api.js";
 import "./styles.css";
 
 const SATUAN_OPTIONS = ["PC", "LITER", "SET", "UNIT", "METER", "BUAH"];
-
-const NAV_ITEMS = [
-  { id: "input", label: "Input & Data", icon: ClipboardList },
-  { id: "lampiran", label: "Lampiran Foto", icon: ImageIcon },
-  { id: "io", label: "Impor & Ekspor", icon: FileSpreadsheet },
-];
-
 const ROLE_LABEL = { admin: "Admin", input: "Input", guest: "Guest" };
+const ROLE_OPTIONS = ["admin", "input", "guest"];
+const MONTH_LABEL = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"];
 
 function uid() {
   return `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
@@ -32,6 +29,12 @@ function formatTanggalID(iso) {
   const d = new Date(iso + "T00:00:00");
   if (isNaN(d.getTime())) return iso;
   return d.toLocaleDateString("id-ID", { day: "2-digit", month: "long", year: "numeric" });
+}
+function formatDateTimeID(iso) {
+  if (!iso) return "-";
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return iso;
+  return d.toLocaleString("id-ID", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
 }
 
 function compressImage(file, maxDim = 1280, quality = 0.78) {
@@ -128,8 +131,21 @@ export default function App() {
   const [resetError, setResetError] = useState("");
   const [backupBusy, setBackupBusy] = useState(false);
   const [search, setSearch] = useState("");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
   const [showSettings, setShowSettings] = useState(false);
   const importRef = useRef(null);
+
+  // admin-only data
+  const [activityLog, setActivityLog] = useState([]);
+  const [activityLoaded, setActivityLoaded] = useState(false);
+  const [users, setUsers] = useState([]);
+  const [usersLoaded, setUsersLoaded] = useState(false);
+  const [newUser, setNewUser] = useState({ username: "", password: "", role: "input" });
+  const [userError, setUserError] = useState("");
+  const [notifyEmail, setNotifyEmail] = useState("");
+  const [configLoaded, setConfigLoaded] = useState(false);
+  const [configSaving, setConfigSaving] = useState(false);
 
   const notify = useCallback((msg, tone = "ok") => {
     setToast({ msg, tone });
@@ -198,6 +214,39 @@ export default function App() {
     setLoginForm({ username: "", password: "" });
   }
 
+  const role = authUser ? authUser.role : null;
+  const canCreate = role === "admin" || role === "input";
+  const canEdit = role === "admin";
+
+  const navItems = useMemo(() => {
+    const base = [
+      { id: "input", label: "Input & Data", icon: ClipboardList },
+      { id: "lampiran", label: "Lampiran Foto", icon: ImageIcon },
+      { id: "dashboard", label: "Dashboard", icon: BarChart3 },
+      { id: "io", label: "Impor & Ekspor", icon: FileSpreadsheet },
+    ];
+    if (role === "admin") {
+      base.push({ id: "activity", label: "Log Aktivitas", icon: History });
+      base.push({ id: "users", label: "Kelola Akun", icon: Users });
+    }
+    return base;
+  }, [role]);
+
+  // ---- load admin-only data lazily when tab opened ----
+  useEffect(() => {
+    if (tab === "activity" && role === "admin" && !activityLoaded) {
+      api.listActivity().then((logs) => { setActivityLog(logs); setActivityLoaded(true); }).catch((err) => handleApiError(err, "Gagal memuat log"));
+    }
+    if (tab === "users" && role === "admin") {
+      if (!usersLoaded) {
+        api.listUsers().then((list) => { setUsers(list); setUsersLoaded(true); }).catch((err) => handleApiError(err, "Gagal memuat akun"));
+      }
+      if (!configLoaded) {
+        api.getConfig().then((cfg) => { setNotifyEmail(cfg.notifyEmail || ""); setConfigLoaded(true); }).catch(() => setConfigLoaded(true));
+      }
+    }
+  }, [tab, role, activityLoaded, usersLoaded, configLoaded, handleApiError]);
+
   const tanggalList = useMemo(() => {
     const set = new Set(entries.map((e) => e.tanggal));
     return Array.from(set).sort((a, b) => (a < b ? 1 : -1));
@@ -228,15 +277,46 @@ export default function App() {
 
   const filteredEntries = useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (!q) return sortedEntries;
-    return sortedEntries.filter((e) =>
-      [e.namaPart, e.kodeBarang, e.lb, e.mekanik, e.satuan, formatTanggalID(e.tanggal)]
-        .join(" ")
-        .toLowerCase()
-        .includes(q)
-    );
-  }, [sortedEntries, search]);
+    return sortedEntries.filter((e) => {
+      if (dateFrom && e.tanggal < dateFrom) return false;
+      if (dateTo && e.tanggal > dateTo) return false;
+      if (!q) return true;
+      return [e.namaPart, e.kodeBarang, e.lb, e.mekanik, e.satuan, formatTanggalID(e.tanggal)]
+        .join(" ").toLowerCase().includes(q);
+    });
+  }, [sortedEntries, search, dateFrom, dateTo]);
 
+  const namaPartOptions = useMemo(() => Array.from(new Set(entries.map((e) => e.namaPart).filter(Boolean))).sort(), [entries]);
+  const kodeBarangOptions = useMemo(() => Array.from(new Set(entries.map((e) => e.kodeBarang).filter(Boolean))).sort(), [entries]);
+  const mekanikOptions = useMemo(() => Array.from(new Set(entries.map((e) => e.mekanik).filter(Boolean))).sort(), [entries]);
+
+  // ---- dashboard aggregates ----
+  const chartByMonth = useMemo(() => {
+    const map = {};
+    entries.forEach((e) => {
+      if (!e.tanggal) return;
+      const key = e.tanggal.slice(0, 7); // YYYY-MM
+      map[key] = (map[key] || 0) + 1;
+    });
+    return Object.keys(map).sort().slice(-6).map((key) => {
+      const [, m] = key.split("-");
+      return { name: MONTH_LABEL[parseInt(m, 10) - 1] || key, jumlah: map[key] };
+    });
+  }, [entries]);
+
+  const topMechanics = useMemo(() => {
+    const map = {};
+    entries.forEach((e) => { if (e.mekanik) map[e.mekanik] = (map[e.mekanik] || 0) + 1; });
+    return Object.entries(map).sort((a, b) => b[1] - a[1]).slice(0, 5).map(([name, jumlah]) => ({ name, jumlah }));
+  }, [entries]);
+
+  const topParts = useMemo(() => {
+    const map = {};
+    entries.forEach((e) => { if (e.namaPart) map[e.namaPart] = (map[e.namaPart] || 0) + 1; });
+    return Object.entries(map).sort((a, b) => b[1] - a[1]).slice(0, 5).map(([name, jumlah]) => ({ name, jumlah }));
+  }, [entries]);
+
+  // ---- entry mutations ----
   async function addEntry() {
     if (!draft.namaPart.trim()) {
       notify("Isi nama spare part dulu.", "err");
@@ -421,6 +501,71 @@ export default function App() {
     window.print();
   }
 
+  // ---- user management ----
+  async function addUser() {
+    setUserError("");
+    if (!newUser.username.trim() || !newUser.password) {
+      setUserError("Username dan password wajib diisi.");
+      return;
+    }
+    setBusy(true);
+    try {
+      await api.addUser(newUser.username.trim(), newUser.password, newUser.role);
+      setUsers((prev) => [...prev, { username: newUser.username.trim(), role: newUser.role }]);
+      setNewUser({ username: "", password: "", role: "input" });
+      notify("Akun baru dibuat.");
+    } catch (err) {
+      setUserError(err.message || "Gagal membuat akun.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function changeUserRole(username, newRole) {
+    try {
+      await api.updateUser(username, { role: newRole });
+      setUsers((prev) => prev.map((u) => (u.username === username ? { ...u, role: newRole } : u)));
+      notify(`Role ${username} diubah jadi ${newRole}.`);
+    } catch (err) {
+      handleApiError(err, "Gagal mengubah role");
+      setUsersLoaded(false); // paksa refresh biar tidak nyasar di UI
+    }
+  }
+
+  async function resetUserPassword(username) {
+    const pw = window.prompt(`Password baru untuk "${username}":`);
+    if (!pw) return;
+    try {
+      await api.updateUser(username, { password: pw });
+      notify(`Password ${username} diperbarui.`);
+    } catch (err) {
+      handleApiError(err, "Gagal mengubah password");
+    }
+  }
+
+  async function removeUser(username) {
+    if (!window.confirm(`Hapus akun "${username}"? Tindakan ini tidak bisa dibatalkan.`)) return;
+    try {
+      await api.deleteUser(username);
+      setUsers((prev) => prev.filter((u) => u.username !== username));
+      notify("Akun dihapus.");
+    } catch (err) {
+      handleApiError(err, "Gagal menghapus akun");
+    }
+  }
+
+  async function saveNotifyEmail() {
+    setConfigSaving(true);
+    try {
+      await api.setConfig(notifyEmail.trim());
+      notify("Pengaturan notifikasi disimpan.");
+    } catch (err) {
+      handleApiError(err, "Gagal menyimpan pengaturan");
+    } finally {
+      setConfigSaving(false);
+    }
+  }
+
   // ---- onboarding: belum ada URL Apps Script ----
   if (!connected) {
     return (
@@ -464,18 +609,13 @@ export default function App() {
           <button className="btn ghost" onClick={() => setShowSettings(true)}>Ubah URL</button>
         </div>
         {showSettings && (
-          <SettingsPanel
-            apiUrlInput={apiUrlInput}
-            setApiUrlInput={setApiUrlInput}
-            onSave={saveApiUrl}
-            onClose={() => setShowSettings(false)}
-          />
+          <SettingsPanel apiUrlInput={apiUrlInput} setApiUrlInput={setApiUrlInput} onSave={saveApiUrl} onClose={() => setShowSettings(false)} />
         )}
       </div>
     );
   }
 
-  // ---- login: belum ada akun yang masuk ----
+  // ---- login ----
   if (!authUser) {
     return (
       <div className="onboard">
@@ -483,20 +623,12 @@ export default function App() {
           <div className="brand-mark"><Lock size={18} /></div>
           <h1>Masuk ke Rekap Barang Bekas</h1>
           <p>Gunakan akun yang sudah didaftarkan admin di sheet "Users".</p>
-          <input
-            type="text"
-            placeholder="Username"
-            value={loginForm.username}
+          <input type="text" placeholder="Username" value={loginForm.username}
             onChange={(e) => setLoginForm((f) => ({ ...f, username: e.target.value }))}
-            onKeyDown={(e) => e.key === "Enter" && handleLogin()}
-          />
-          <input
-            type="password"
-            placeholder="Password"
-            value={loginForm.password}
+            onKeyDown={(e) => e.key === "Enter" && handleLogin()} />
+          <input type="password" placeholder="Password" value={loginForm.password}
             onChange={(e) => setLoginForm((f) => ({ ...f, password: e.target.value }))}
-            onKeyDown={(e) => e.key === "Enter" && handleLogin()}
-          />
+            onKeyDown={(e) => e.key === "Enter" && handleLogin()} />
           {loginError && <p className="login-error">{loginError}</p>}
           <button className="btn primary" onClick={handleLogin} disabled={loginBusy}>
             {loginBusy ? <Loader2 size={16} className="spin" /> : <Lock size={16} />}
@@ -505,21 +637,13 @@ export default function App() {
           <button className="link-btn" onClick={() => setShowSettings(true)}>Ubah URL Apps Script</button>
         </div>
         {showSettings && (
-          <SettingsPanel
-            apiUrlInput={apiUrlInput}
-            setApiUrlInput={setApiUrlInput}
-            onSave={saveApiUrl}
-            onClose={() => setShowSettings(false)}
-          />
+          <SettingsPanel apiUrlInput={apiUrlInput} setApiUrlInput={setApiUrlInput} onSave={saveApiUrl} onClose={() => setShowSettings(false)} />
         )}
       </div>
     );
   }
 
-  const role = authUser.role;
-  const canCreate = role === "admin" || role === "input";
-  const canEdit = role === "admin";
-  const activeNav = NAV_ITEMS.find((n) => n.id === tab);
+  const activeNav = navItems.find((n) => n.id === tab) || navItems[0];
 
   return (
     <div className="app-shell">
@@ -528,12 +652,12 @@ export default function App() {
           <div className="brand-mark"><Leaf size={19} strokeWidth={2.2} /></div>
           <div>
             <h1>Rekap Barang Bekas</h1>
-            <p>PT AMI - Trans Jogja</p>
+            <p>Dinas Perhubungan DIY - Trans Jogja</p>
           </div>
         </div>
 
         <nav className="side-nav">
-          {NAV_ITEMS.map(({ id, label, icon: Icon }) => (
+          {navItems.map(({ id, label, icon: Icon }) => (
             <button key={id} className={`side-nav-item ${tab === id ? "active" : ""}`} onClick={() => setTab(id)}>
               <Icon size={17} />{label}
             </button>
@@ -572,7 +696,7 @@ export default function App() {
 
         <div className="sidebar-footer">
           <Bus size={54} strokeWidth={1.3} />
-          <p>TransJogja<br />Penghubung<br />Setiap Cerita</p>
+          <p>Bersama<br />Untuk Transportasi<br />Yang Lebih Baik</p>
         </div>
       </aside>
 
@@ -589,8 +713,8 @@ export default function App() {
         <div className="hero-banner no-print">
           <div className="hero-blobs" aria-hidden="true"><span className="blob b1" /><span className="blob b2" /><span className="blob b3" /></div>
           <p className="hero-kicker">Selamat Datang</p>
-          <h2>{activeNav ? activeNav.label : "Rekap Barang Bekas"}</h2>
-          <p className="hero-sub">PT AMI - Trans Jogja</p>
+          <h2>{activeNav.label}</h2>
+          <p className="hero-sub">Dinas Perhubungan DIY - Trans Jogja</p>
         </div>
 
         {tab === "input" && (
@@ -617,12 +741,12 @@ export default function App() {
                 </label>
                 <label className="col-2"><span>Nama spare part</span>
                   <div className="input-wrap"><Wrench size={15} className="input-icon" />
-                    <input type="text" placeholder="mis. LINER NQR 71" value={draft.namaPart} onChange={(e) => setDraft((d) => ({ ...d, namaPart: e.target.value }))} />
+                    <input type="text" list="namaPart-options" placeholder="mis. LINER NQR 71" value={draft.namaPart} onChange={(e) => setDraft((d) => ({ ...d, namaPart: e.target.value }))} />
                   </div>
                 </label>
                 <label><span>Kode barang</span>
                   <div className="input-wrap"><Barcode size={15} className="input-icon" />
-                    <input type="text" placeholder="mis. NQR0090" value={draft.kodeBarang} onChange={(e) => setDraft((d) => ({ ...d, kodeBarang: e.target.value }))} />
+                    <input type="text" list="kodeBarang-options" placeholder="mis. NQR0090" value={draft.kodeBarang} onChange={(e) => setDraft((d) => ({ ...d, kodeBarang: e.target.value }))} />
                   </div>
                 </label>
                 <label><span>Jumlah</span>
@@ -639,10 +763,13 @@ export default function App() {
                 </label>
                 <label><span>Mekanik</span>
                   <div className="input-wrap"><User size={15} className="input-icon" />
-                    <input type="text" placeholder="mis. ARIF TRI" value={draft.mekanik} onChange={(e) => setDraft((d) => ({ ...d, mekanik: e.target.value }))} />
+                    <input type="text" list="mekanik-options" placeholder="mis. ARIF TRI" value={draft.mekanik} onChange={(e) => setDraft((d) => ({ ...d, mekanik: e.target.value }))} />
                   </div>
                 </label>
               </div>
+              <datalist id="namaPart-options">{namaPartOptions.map((v) => <option key={v} value={v} />)}</datalist>
+              <datalist id="kodeBarang-options">{kodeBarangOptions.map((v) => <option key={v} value={v} />)}</datalist>
+              <datalist id="mekanik-options">{mekanikOptions.map((v) => <option key={v} value={v} />)}</datalist>
               <button className="btn primary" onClick={addEntry}><Plus size={16} />Tambah ke rekap</button>
             </section>
             ) : (
@@ -669,15 +796,14 @@ export default function App() {
                 <div className="table-toolbar">
                   <div className="search-wrap">
                     <Search size={14} className="search-icon" />
-                    <input
-                      type="text"
-                      placeholder="Cari nama part, kode, LB, atau mekanik…"
-                      value={search}
-                      onChange={(e) => setSearch(e.target.value)}
-                    />
-                    {search && (
-                      <button className="search-clear" onClick={() => setSearch("")} title="Bersihkan pencarian"><X size={13} /></button>
-                    )}
+                    <input type="text" placeholder="Cari nama part, kode, LB, atau mekanik…" value={search} onChange={(e) => setSearch(e.target.value)} />
+                    {search && <button className="search-clear" onClick={() => setSearch("")} title="Bersihkan pencarian"><X size={13} /></button>}
+                  </div>
+                  <div className="date-range">
+                    <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} title="Dari tanggal" />
+                    <span>–</span>
+                    <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} title="Sampai tanggal" />
+                    {(dateFrom || dateTo) && <button className="search-clear" onClick={() => { setDateFrom(""); setDateTo(""); }} title="Bersihkan filter tanggal"><X size={13} /></button>}
                   </div>
                   <span className="count-pill">{filteredEntries.length} / {entries.length} baris</span>
                 </div>
@@ -685,7 +811,7 @@ export default function App() {
               {!entries.length ? (
                 <EmptyState text="Belum ada data. Tambahkan lewat form di atas atau impor file rekap." />
               ) : !filteredEntries.length ? (
-                <EmptyState text={`Tidak ada data yang cocok dengan "${search}".`} />
+                <EmptyState text={`Tidak ada data yang cocok dengan filter saat ini.`} />
               ) : (
                 <div className="table-wrap">
                   <table>
@@ -776,6 +902,7 @@ export default function App() {
         {tab === "lampiran" && (
           <main className="page">
             <section className="card no-print">
+              <p className="card-kicker">Dokumentasi</p>
               <div className="card-head wrap">
                 <div className="card-title-row">
                   <div className="card-icon rust"><Images size={16} /></div>
@@ -819,6 +946,69 @@ export default function App() {
                 </div>
               </div>
             )}
+          </main>
+        )}
+
+        {tab === "dashboard" && (
+          <main className="page no-print">
+            <div className="dashboard-grid">
+              <section className="card">
+                <div className="card-title-row">
+                  <div className="card-icon"><BarChart3 size={16} /></div>
+                  <div>
+                    <h2>Data per bulan</h2>
+                    <p className="card-desc">Jumlah spare part bekas tercatat, 6 bulan terakhir.</p>
+                  </div>
+                </div>
+                {chartByMonth.length ? (
+                  <div className="chart-box">
+                    <ResponsiveContainer width="100%" height={220}>
+                      <BarChart data={chartByMonth}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#e1e7f5" vertical={false} />
+                        <XAxis dataKey="name" tick={{ fontSize: 12, fill: "#64708c" }} axisLine={{ stroke: "#e1e7f5" }} tickLine={false} />
+                        <YAxis allowDecimals={false} tick={{ fontSize: 12, fill: "#64708c" }} axisLine={false} tickLine={false} width={28} />
+                        <Tooltip contentStyle={{ borderRadius: 10, border: "1px solid #e1e7f5", fontSize: 12.5 }} cursor={{ fill: "#eef1fb" }} />
+                        <Bar dataKey="jumlah" fill="#2f6fed" radius={[6, 6, 0, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                ) : <EmptyState text="Belum ada data untuk ditampilkan." />}
+              </section>
+
+              <section className="card">
+                <div className="card-title-row">
+                  <div className="card-icon gold"><User size={16} /></div>
+                  <div>
+                    <h2>Mekanik teraktif</h2>
+                    <p className="card-desc">5 mekanik dengan jumlah pengerjaan terbanyak.</p>
+                  </div>
+                </div>
+                {topMechanics.length ? (
+                  <ul className="leaderboard">
+                    {topMechanics.map((m, i) => (
+                      <li key={m.name}><span className="rank">{i + 1}</span><span className="name">{m.name}</span><span className="count">{m.jumlah}</span></li>
+                    ))}
+                  </ul>
+                ) : <EmptyState text="Belum ada data untuk ditampilkan." />}
+              </section>
+
+              <section className="card">
+                <div className="card-title-row">
+                  <div className="card-icon rust"><Wrench size={16} /></div>
+                  <div>
+                    <h2>Spare part paling sering diganti</h2>
+                    <p className="card-desc">5 nama part dengan frekuensi penggantian terbanyak.</p>
+                  </div>
+                </div>
+                {topParts.length ? (
+                  <ul className="leaderboard">
+                    {topParts.map((m, i) => (
+                      <li key={m.name}><span className="rank">{i + 1}</span><span className="name">{m.name}</span><span className="count">{m.jumlah}</span></li>
+                    ))}
+                  </ul>
+                ) : <EmptyState text="Belum ada data untuk ditampilkan." />}
+              </section>
+            </div>
           </main>
         )}
 
@@ -884,14 +1074,10 @@ export default function App() {
                 <div className="reset-confirm">
                   <label>
                     <span>Masukkan ulang password admin untuk konfirmasi</span>
-                    <input
-                      type="password"
-                      value={resetPassword}
+                    <input type="password" value={resetPassword}
                       onChange={(e) => { setResetPassword(e.target.value); setResetError(""); }}
                       onKeyDown={(e) => e.key === "Enter" && resetAll()}
-                      placeholder="Password"
-                      autoFocus
-                    />
+                      placeholder="Password" autoFocus />
                   </label>
                   {resetError && <p className="login-error">{resetError}</p>}
                   <div className="btn-row">
@@ -905,6 +1091,140 @@ export default function App() {
           </main>
         )}
 
+        {tab === "activity" && role === "admin" && (
+          <main className="page no-print">
+            <section className="card">
+              <div className="card-head">
+                <div className="card-title-row">
+                  <div className="card-icon"><History size={16} /></div>
+                  <div>
+                    <h2>Log aktivitas</h2>
+                    <p className="card-desc">Riwayat siapa menambah, mengedit, menghapus, atau login — 500 catatan terakhir.</p>
+                  </div>
+                </div>
+                <button className="btn ghost" onClick={() => { setActivityLoaded(false); }}><RotateCcw size={14} />Muat ulang</button>
+              </div>
+              {!activityLoaded ? (
+                <div className="empty-state"><Loader2 className="spin" size={20} /><p>Memuat log…</p></div>
+              ) : !activityLog.length ? (
+                <EmptyState text="Belum ada aktivitas tercatat." />
+              ) : (
+                <div className="table-wrap">
+                  <table>
+                    <thead><tr><th>Waktu</th><th>Akun</th><th>Role</th><th>Aksi</th><th>Detail</th></tr></thead>
+                    <tbody>
+                      {activityLog.map((log, i) => (
+                        <tr key={i}>
+                          <td className="mono">{formatDateTimeID(log.timestamp)}</td>
+                          <td>{log.username}</td>
+                          <td><span className={`role-badge ${log.role}`}>{ROLE_LABEL[log.role] || log.role}</span></td>
+                          <td className="mono">{log.action}</td>
+                          <td>{log.detail}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </section>
+          </main>
+        )}
+
+        {tab === "users" && role === "admin" && (
+          <main className="page no-print">
+            <section className="card">
+              <div className="card-title-row">
+                <div className="card-icon gold"><UserPlus size={16} /></div>
+                <div>
+                  <h2>Tambah akun</h2>
+                  <p className="card-desc">Buat akun baru untuk anggota tim, tentukan perannya.</p>
+                </div>
+              </div>
+              <div className="form-grid user-form-grid">
+                <label><span>Username</span>
+                  <div className="input-wrap"><User size={15} className="input-icon" />
+                    <input type="text" value={newUser.username} onChange={(e) => setNewUser((u) => ({ ...u, username: e.target.value }))} placeholder="mis. budi" />
+                  </div>
+                </label>
+                <label><span>Password</span>
+                  <div className="input-wrap"><KeyRound size={15} className="input-icon" />
+                    <input type="text" value={newUser.password} onChange={(e) => setNewUser((u) => ({ ...u, password: e.target.value }))} placeholder="Password awal" />
+                  </div>
+                </label>
+                <label><span>Role</span>
+                  <div className="input-wrap"><ShieldCheck size={15} className="input-icon" />
+                    <select value={newUser.role} onChange={(e) => setNewUser((u) => ({ ...u, role: e.target.value }))}>
+                      {ROLE_OPTIONS.map((r) => <option key={r} value={r}>{ROLE_LABEL[r]}</option>)}
+                    </select>
+                  </div>
+                </label>
+              </div>
+              {userError && <p className="login-error">{userError}</p>}
+              <button className="btn primary" onClick={addUser}><UserPlus size={16} />Buat akun</button>
+            </section>
+
+            <section className="card">
+              <div className="card-head">
+                <div className="card-title-row">
+                  <div className="card-icon"><Users size={16} /></div>
+                  <div>
+                    <h2>Daftar akun</h2>
+                    <p className="card-desc">Ubah peran, atur ulang password, atau hapus akun.</p>
+                  </div>
+                </div>
+                <span className="count-pill">{users.length} akun</span>
+              </div>
+              {!usersLoaded ? (
+                <div className="empty-state"><Loader2 className="spin" size={20} /><p>Memuat akun…</p></div>
+              ) : (
+                <div className="table-wrap">
+                  <table>
+                    <thead><tr><th>Username</th><th>Role</th><th></th></tr></thead>
+                    <tbody>
+                      {users.map((u) => (
+                        <tr key={u.username}>
+                          <td>{u.username}{u.username === authUser.username && <span className="you-tag">kamu</span>}</td>
+                          <td>
+                            <select value={u.role} onChange={(e) => changeUserRole(u.username, e.target.value)}>
+                              {ROLE_OPTIONS.map((r) => <option key={r} value={r}>{ROLE_LABEL[r]}</option>)}
+                            </select>
+                          </td>
+                          <td>
+                            <div className="btn-row">
+                              <button className="icon-btn" onClick={() => resetUserPassword(u.username)} title="Atur ulang password"><KeyRound size={14} /></button>
+                              <button className="icon-btn danger" onClick={() => removeUser(u.username)} title="Hapus akun" disabled={u.username === authUser.username}><Trash2 size={14} /></button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </section>
+
+            <section className="card">
+              <div className="card-title-row">
+                <div className="card-icon rust"><Mail size={16} /></div>
+                <div>
+                  <h2>Notifikasi email</h2>
+                  <p className="card-desc">Alamat email ini akan menerima pemberitahuan otomatis setiap kali ada yang mereset data.</p>
+                </div>
+              </div>
+              <div className="reset-confirm">
+                <label>
+                  <span>Alamat email</span>
+                  <input type="email" value={notifyEmail} onChange={(e) => setNotifyEmail(e.target.value)} placeholder="admin@contoh.com" />
+                </label>
+                <button className="btn ghost" onClick={saveNotifyEmail} disabled={configSaving} style={{ alignSelf: "flex-start" }}>
+                  {configSaving ? <Loader2 size={15} className="spin" /> : <CheckCircle2 size={15} />}
+                  Simpan
+                </button>
+              </div>
+            </section>
+          </main>
+        )}
+
         {busy && <div className="busy-overlay no-print"><Loader2 className="spin" size={20} /></div>}
         {toast && (
           <div className={`toast ${toast.tone} no-print`}>
@@ -913,12 +1233,7 @@ export default function App() {
           </div>
         )}
         {showSettings && (
-          <SettingsPanel
-            apiUrlInput={apiUrlInput}
-            setApiUrlInput={setApiUrlInput}
-            onSave={saveApiUrl}
-            onClose={() => setShowSettings(false)}
-          />
+          <SettingsPanel apiUrlInput={apiUrlInput} setApiUrlInput={setApiUrlInput} onSave={saveApiUrl} onClose={() => setShowSettings(false)} />
         )}
       </div>
     </div>
