@@ -30,7 +30,19 @@ const PHOTO_FOLDER_NAME = "RekapBarangBekas_Foto";
 const HEADERS = [
   "ID", "Tanggal", "LB", "NamaPart", "KodeBarang", "Jumlah",
   "Satuan", "Mekanik", "FotoKondisiURL", "FotoPasangURL", "CreatedAt",
+  "FotoBanBaruKananURL", "FotoBanBaruKiriURL",
+  "FotoBanKodeBaruKananURL", "FotoBanKodeBaruKiriURL",
+  "FotoBanBekasKananURL", "FotoBanBekasKiriURL",
+  "FotoBanKodeBekasKananURL", "FotoBanKodeBekasKiriURL",
 ];
+// Peta nama "slot" foto -> nomor kolom di sheet Entries (1-based).
+const SLOT_COLUMNS = {
+  kondisi: 9, pasang: 10,
+  banBaruKanan: 12, banBaruKiri: 13,
+  banKodeBaruKanan: 14, banKodeBaruKiri: 15,
+  banBekasKanan: 16, banBekasKiri: 17,
+  banKodeBekasKanan: 18, banKodeBekasKiri: 19,
+};
 const USER_HEADERS = ["Username", "Password", "Role"];
 const LOG_HEADERS = ["Timestamp", "Username", "Role", "Action", "Detail"];
 const CONFIG_HEADERS = ["Key", "Value"];
@@ -50,6 +62,13 @@ function getSheet_() {
   if (sheet.getLastRow() === 0) {
     sheet.appendRow(HEADERS);
     sheet.setFrozenRows(1);
+  } else {
+    // Migrasi otomatis: sheet lama (sebelum ada kolom foto ban) cuma punya
+    // 11 kolom header — tambahkan kolom baru tanpa mengganggu data yang ada.
+    const lastCol = sheet.getLastColumn();
+    if (lastCol < HEADERS.length) {
+      sheet.getRange(1, lastCol + 1, 1, HEADERS.length - lastCol).setValues([HEADERS.slice(lastCol)]);
+    }
   }
   sheet.getRange("B2:B").setNumberFormat("@");
   return sheet;
@@ -129,6 +148,16 @@ function sheetToObjects_() {
       mekanik: String(obj.Mekanik || ""),
       fotoKondisi: obj.FotoKondisiURL || null,
       fotoPasang: obj.FotoPasangURL || null,
+      fotoBan: {
+        baruKanan: obj.FotoBanBaruKananURL || null,
+        baruKiri: obj.FotoBanBaruKiriURL || null,
+        kodeBaruKanan: obj.FotoBanKodeBaruKananURL || null,
+        kodeBaruKiri: obj.FotoBanKodeBaruKiriURL || null,
+        bekasKanan: obj.FotoBanBekasKananURL || null,
+        bekasKiri: obj.FotoBanBekasKiriURL || null,
+        kodeBekasKanan: obj.FotoBanKodeBekasKananURL || null,
+        kodeBekasKiri: obj.FotoBanKodeBekasKiriURL || null,
+      },
       rowIndex: i + 1,
     });
   }
@@ -423,6 +452,8 @@ function doPost(e) {
       const auth = requireRole_(body.token, ["admin", "input"]);
       const row = findRowById_(sheet, body.id);
       if (row === -1) return jsonOut_({ ok: false, error: "ID tidak ditemukan" });
+      const col = SLOT_COLUMNS[body.slot];
+      if (!col) return jsonOut_({ ok: false, error: "Slot foto tidak dikenal: " + body.slot });
 
       const matches = String(body.dataUrl || "").match(/^data:(image\/[a-zA-Z]+);base64,(.+)$/);
       if (!matches) return jsonOut_({ ok: false, error: "Format foto tidak valid" });
@@ -442,7 +473,6 @@ function doPost(e) {
       const fileId = file.getId();
       const publicUrl = `https://lh3.googleusercontent.com/d/${fileId}`;
 
-      const col = body.slot === "kondisi" ? 9 : 10;
       sheet.getRange(row, col).setValue(publicUrl);
       logActivity_(auth.username, auth.role, "uploadPhoto", "Unggah foto " + body.slot + " id=" + body.id);
       return jsonOut_({ ok: true, url: publicUrl });
@@ -452,7 +482,8 @@ function doPost(e) {
       const auth = requireRole_(body.token, ["admin"]);
       const row = findRowById_(sheet, body.id);
       if (row === -1) return jsonOut_({ ok: false, error: "ID tidak ditemukan" });
-      const col = body.slot === "kondisi" ? 9 : 10;
+      const col = SLOT_COLUMNS[body.slot];
+      if (!col) return jsonOut_({ ok: false, error: "Slot foto tidak dikenal: " + body.slot });
       sheet.getRange(row, col).setValue("");
       logActivity_(auth.username, auth.role, "removePhoto", "Hapus foto " + body.slot + " id=" + body.id);
       return jsonOut_({ ok: true });
