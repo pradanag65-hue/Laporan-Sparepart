@@ -224,13 +224,21 @@ body { background: var(--surface); }
 .import-progress-fill { height: 100%; background: var(--accent); border-radius: 999px; transition: width 0.2s ease; }
 .import-progress span { font-size: 12px; color: var(--muted); }
 
+/* ---------- lightbox preview & ganti foto ---------- */
+.lightbox-card { background: #fff; border-radius: 16px; padding: 14px; max-width: 560px; width: 100%; max-height: 88vh; display: flex; flex-direction: column; gap: 10px; box-shadow: 0 30px 60px -20px rgba(6, 15, 40, 0.5); }
+.lightbox-head { display: flex; align-items: center; justify-content: space-between; font-size: 13px; font-weight: 600; color: var(--ink); }
+.lightbox-img { width: 100%; max-height: 64vh; object-fit: contain; border-radius: 10px; background: var(--surface-2); }
+.lightbox-actions { justify-content: flex-end; }
+
 /* ---------- halaman khusus ban (8 foto per lambung) ---------- */
 .ban-page { margin-bottom: 22px; }
 .ban-page-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .ban-page-grid .ban-cell .photo-frame { aspect-ratio: 4 / 3; }
 @media print {
+  @page { size: 215.9mm 330.2mm; margin: 12mm; } /* F4 / Folio, supaya 8 foto ban muat 1 halaman */
   .force-break { break-before: page; page-break-before: always; }
   .ban-page-grid { gap: 8px; }
+  .ban-page-grid .ban-cell .photo-frame { aspect-ratio: 4 / 3.2; }
 }
 
 /* ---------- modal kelola 8 foto ban ---------- */
@@ -329,6 +337,8 @@ table input[type="date"]:hover { border-color: var(--line); background: #fff; }
 .thumb-empty:hover { border-color: var(--accent); color: var(--accent); }
 .thumb-empty.readonly { cursor: default; opacity: 0.55; }
 .thumb-empty.readonly:hover { border-color: var(--line); color: var(--muted); }
+.thumb-empty.uploading { cursor: default; color: var(--accent); border-style: solid; }
+.thumb img.clickable, .photo-frame img.clickable { cursor: zoom-in; }
 .file-input { position: absolute; width: 1px; height: 1px; opacity: 0; overflow: hidden; }
 
 /* ---------- empty state ---------- */
@@ -359,7 +369,7 @@ table input[type="date"]:hover { border-color: var(--line); background: #fff; }
 .photo-missing { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; }
 .photo-missing label { display: flex; flex-direction: column; align-items: center; gap: 5px; color: var(--muted); font-size: 11px; cursor: pointer; }
 .photo-missing-label { display: flex; flex-direction: column; align-items: center; gap: 5px; color: var(--muted); font-size: 11px; }
-.photo-tag { position: absolute; left: 6px; bottom: 6px; background: rgba(10, 28, 64, 0.78); color: #fff; font-size: 9.5px; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; padding: 2px 6px; border-radius: 5px; max-width: calc(100% - 12px); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.photo-tag { position: absolute; left: 6px; top: 6px; background: rgba(10, 28, 64, 0.78); color: #fff; font-size: 9.5px; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; padding: 2px 6px; border-radius: 5px; max-width: calc(100% - 12px); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .photo-card figcaption { padding: 8px 10px; text-align: center; border-top: 1px solid var(--line); }
 .photo-card figcaption strong { display: block; font-size: 11.5px; letter-spacing: 0.01em; color: var(--ink); }
 .photo-card figcaption span { display: block; font-size: 10px; color: var(--muted); margin-top: 1px; }
