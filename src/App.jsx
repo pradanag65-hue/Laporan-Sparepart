@@ -136,6 +136,8 @@ export default function App() {
   const [importProgress, setImportProgress] = useState(null);
   const [search, setSearch] = useState("");
   const [banModalEntry, setBanModalEntry] = useState(null);
+  const [lightbox, setLightbox] = useState(null);
+  const [uploadingKeys, setUploadingKeys] = useState(() => new Set());
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [showSettings, setShowSettings] = useState(false);
@@ -376,29 +378,62 @@ export default function App() {
 
   async function attachPhoto(id, slot, file) {
     if (!file) return;
+    const uploadKey = `${id}:${slot}`;
+    setUploadingKeys((prev) => new Set(prev).add(uploadKey));
     setBusy(true);
     try {
       const dataUrl = await compressImage(file);
       const url = await api.uploadPhoto(id, slot, dataUrl);
-      const key = slot === "kondisi" ? "fotoKondisi" : "fotoPasang";
-      setEntries((prev) => prev.map((e) => (e.id === id ? { ...e, [key]: url } : e)));
+      setEntries((prev) =>
+        prev.map((e) => {
+          if (e.id !== id) return e;
+          if (slot === "kondisi") return { ...e, fotoKondisi: url };
+          if (slot === "pasang") return { ...e, fotoPasang: url };
+          const banField = BAN_FIELD_KEY[slot];
+          if (banField) return { ...e, fotoBan: { ...(e.fotoBan || {}), [banField]: url } };
+          return e;
+        })
+      );
       notify("Foto tersimpan ke Google Drive.");
+      setLightbox((lb) => (lb && lb.id === id && lb.slot === slot ? { ...lb, url } : lb));
     } catch (err) {
       console.error(err);
       handleApiError(err, "Gagal mengunggah foto");
     } finally {
       setBusy(false);
+      setUploadingKeys((prev) => { const next = new Set(prev); next.delete(uploadKey); return next; });
     }
   }
 
   async function removePhoto(id, slot) {
     try {
       await api.removePhoto(id, slot);
-      const key = slot === "kondisi" ? "fotoKondisi" : "fotoPasang";
-      setEntries((prev) => prev.map((e) => (e.id === id ? { ...e, [key]: null } : e)));
+      setEntries((prev) =>
+        prev.map((e) => {
+          if (e.id !== id) return e;
+          if (slot === "kondisi") return { ...e, fotoKondisi: null };
+          if (slot === "pasang") return { ...e, fotoPasang: null };
+          const banField = BAN_FIELD_KEY[slot];
+          if (banField) return { ...e, fotoBan: { ...(e.fotoBan || {}), [banField]: null } };
+          return e;
+        })
+      );
+      setLightbox((lb) => (lb && lb.id === id && lb.slot === slot ? null : lb));
     } catch (err) {
       handleApiError(err, "Gagal menghapus foto");
     }
+  }
+
+  function isUploading(id, slot) {
+    return uploadingKeys.has(`${id}:${slot}`);
+  }
+
+  function openLightbox(id, slot, url, label, allowRemove) {
+    setLightbox({
+      id, slot, url, label,
+      onReplace: (file) => attachPhoto(id, slot, file),
+      onRemove: allowRemove ? () => removePhoto(id, slot) : null,
+    });
   }
 
   async function handleImport(file) {
@@ -924,9 +959,13 @@ export default function App() {
                             ) : (
                               <div className="photo-slots">
                                 <PhotoSlot label="Kondisi" value={e.fotoKondisi} readOnly={!canCreate}
+                                  uploading={isUploading(e.id, "kondisi")}
+                                  onPreview={() => openLightbox(e.id, "kondisi", e.fotoKondisi, `${e.namaPart} — Kondisi`, canEdit)}
                                   onPick={(f) => attachPhoto(e.id, "kondisi", f)}
                                   onRemove={canEdit ? () => removePhoto(e.id, "kondisi") : undefined} />
                                 <PhotoSlot label="Pasang" value={e.fotoPasang} readOnly={!canCreate}
+                                  uploading={isUploading(e.id, "pasang")}
+                                  onPreview={() => openLightbox(e.id, "pasang", e.fotoPasang, `${e.namaPart} — Pemasangan`, canEdit)}
                                   onPick={(f) => attachPhoto(e.id, "pasang", f)}
                                   onRemove={canEdit ? () => removePhoto(e.id, "pasang") : undefined} />
                               </div>
@@ -989,8 +1028,14 @@ export default function App() {
                     <div className="photo-rows">
                       {normalLampiranEntries.map((e) => (
                         <div className={`photo-row ${!e.fotoKondisi && !e.fotoPasang ? "print-hide-row" : ""}`} key={e.id}>
-                          <PhotoCard entry={e} slot="kondisi" title="(BARU DAN BEKAS)" readOnly={!canCreate} onPick={(f) => attachPhoto(e.id, "kondisi", f)} />
-                          <PhotoCard entry={e} slot="pasang" title="(PENGGANTIAN)" readOnly={!canCreate} onPick={(f) => attachPhoto(e.id, "pasang", f)} />
+                          <PhotoCard entry={e} slot="kondisi" title="(BARU DAN BEKAS)" readOnly={!canCreate}
+                            uploading={isUploading(e.id, "kondisi")}
+                            onPreview={() => openLightbox(e.id, "kondisi", e.fotoKondisi, `${e.namaPart} — Kondisi`, canEdit)}
+                            onPick={(f) => attachPhoto(e.id, "kondisi", f)} />
+                          <PhotoCard entry={e} slot="pasang" title="(PENGGANTIAN)" readOnly={!canCreate}
+                            uploading={isUploading(e.id, "pasang")}
+                            onPreview={() => openLightbox(e.id, "pasang", e.fotoPasang, `${e.namaPart} — Pemasangan`, canEdit)}
+                            onPick={(f) => attachPhoto(e.id, "pasang", f)} />
                         </div>
                       ))}
                     </div>
@@ -1004,14 +1049,30 @@ export default function App() {
                       <p>BUS LAMBUNG {e.lb || "-"} · {formatTanggalID(e.tanggal)}</p>
                     </div>
                     <div className="ban-page-grid">
-                      <BanPageCell label="BAN DEPAN KANAN (BARU)" tag={`LB ${e.lb || "-"} · Kanan Baru`} value={e.fotoBan?.baruKanan} readOnly={!canCreate} onPick={(f) => attachPhoto(e.id, "banBaruKanan", f)} />
-                      <BanPageCell label="BAN DEPAN KIRI (BARU)" tag={`LB ${e.lb || "-"} · Kiri Baru`} value={e.fotoBan?.baruKiri} readOnly={!canCreate} onPick={(f) => attachPhoto(e.id, "banBaruKiri", f)} />
-                      <BanPageCell label="KODE BAN DEPAN KANAN (BARU)" tag={`LB ${e.lb || "-"} · Kode Kanan Baru`} value={e.fotoBan?.kodeBaruKanan} readOnly={!canCreate} onPick={(f) => attachPhoto(e.id, "banKodeBaruKanan", f)} />
-                      <BanPageCell label="KODE BAN DEPAN KIRI (BARU)" tag={`LB ${e.lb || "-"} · Kode Kiri Baru`} value={e.fotoBan?.kodeBaruKiri} readOnly={!canCreate} onPick={(f) => attachPhoto(e.id, "banKodeBaruKiri", f)} />
-                      <BanPageCell label="BAN DEPAN KANAN (BEKAS)" tag={`LB ${e.lb || "-"} · Kanan Bekas`} value={e.fotoBan?.bekasKanan} readOnly={!canCreate} onPick={(f) => attachPhoto(e.id, "banBekasKanan", f)} />
-                      <BanPageCell label="BAN DEPAN KIRI (BEKAS)" tag={`LB ${e.lb || "-"} · Kiri Bekas`} value={e.fotoBan?.bekasKiri} readOnly={!canCreate} onPick={(f) => attachPhoto(e.id, "banBekasKiri", f)} />
-                      <BanPageCell label="KODE BAN DEPAN KANAN (BEKAS)" tag={`LB ${e.lb || "-"} · Kode Kanan Bekas`} value={e.fotoBan?.kodeBekasKanan} readOnly={!canCreate} onPick={(f) => attachPhoto(e.id, "banKodeBekasKanan", f)} />
-                      <BanPageCell label="KODE BAN DEPAN KIRI (BEKAS)" tag={`LB ${e.lb || "-"} · Kode Kiri Bekas`} value={e.fotoBan?.kodeBekasKiri} readOnly={!canCreate} onPick={(f) => attachPhoto(e.id, "banKodeBekasKiri", f)} />
+                      <BanPageCell label="BAN DEPAN KANAN (BARU)" tag={`LB ${e.lb || "-"} · Kanan Baru`} value={e.fotoBan?.baruKanan} readOnly={!canCreate}
+                        uploading={isUploading(e.id, "banBaruKanan")} onPreview={() => openLightbox(e.id, "banBaruKanan", e.fotoBan?.baruKanan, "Ban Kanan (Baru)", canEdit)}
+                        onPick={(f) => attachPhoto(e.id, "banBaruKanan", f)} />
+                      <BanPageCell label="BAN DEPAN KIRI (BARU)" tag={`LB ${e.lb || "-"} · Kiri Baru`} value={e.fotoBan?.baruKiri} readOnly={!canCreate}
+                        uploading={isUploading(e.id, "banBaruKiri")} onPreview={() => openLightbox(e.id, "banBaruKiri", e.fotoBan?.baruKiri, "Ban Kiri (Baru)", canEdit)}
+                        onPick={(f) => attachPhoto(e.id, "banBaruKiri", f)} />
+                      <BanPageCell label="KODE BAN DEPAN KANAN (BARU)" tag={`LB ${e.lb || "-"} · Kode Kanan Baru`} value={e.fotoBan?.kodeBaruKanan} readOnly={!canCreate}
+                        uploading={isUploading(e.id, "banKodeBaruKanan")} onPreview={() => openLightbox(e.id, "banKodeBaruKanan", e.fotoBan?.kodeBaruKanan, "Kode Ban Kanan (Baru)", canEdit)}
+                        onPick={(f) => attachPhoto(e.id, "banKodeBaruKanan", f)} />
+                      <BanPageCell label="KODE BAN DEPAN KIRI (BARU)" tag={`LB ${e.lb || "-"} · Kode Kiri Baru`} value={e.fotoBan?.kodeBaruKiri} readOnly={!canCreate}
+                        uploading={isUploading(e.id, "banKodeBaruKiri")} onPreview={() => openLightbox(e.id, "banKodeBaruKiri", e.fotoBan?.kodeBaruKiri, "Kode Ban Kiri (Baru)", canEdit)}
+                        onPick={(f) => attachPhoto(e.id, "banKodeBaruKiri", f)} />
+                      <BanPageCell label="BAN DEPAN KANAN (BEKAS)" tag={`LB ${e.lb || "-"} · Kanan Bekas`} value={e.fotoBan?.bekasKanan} readOnly={!canCreate}
+                        uploading={isUploading(e.id, "banBekasKanan")} onPreview={() => openLightbox(e.id, "banBekasKanan", e.fotoBan?.bekasKanan, "Ban Kanan (Bekas)", canEdit)}
+                        onPick={(f) => attachPhoto(e.id, "banBekasKanan", f)} />
+                      <BanPageCell label="BAN DEPAN KIRI (BEKAS)" tag={`LB ${e.lb || "-"} · Kiri Bekas`} value={e.fotoBan?.bekasKiri} readOnly={!canCreate}
+                        uploading={isUploading(e.id, "banBekasKiri")} onPreview={() => openLightbox(e.id, "banBekasKiri", e.fotoBan?.bekasKiri, "Ban Kiri (Bekas)", canEdit)}
+                        onPick={(f) => attachPhoto(e.id, "banBekasKiri", f)} />
+                      <BanPageCell label="KODE BAN DEPAN KANAN (BEKAS)" tag={`LB ${e.lb || "-"} · Kode Kanan Bekas`} value={e.fotoBan?.kodeBekasKanan} readOnly={!canCreate}
+                        uploading={isUploading(e.id, "banKodeBekasKanan")} onPreview={() => openLightbox(e.id, "banKodeBekasKanan", e.fotoBan?.kodeBekasKanan, "Kode Ban Kanan (Bekas)", canEdit)}
+                        onPick={(f) => attachPhoto(e.id, "banKodeBekasKanan", f)} />
+                      <BanPageCell label="KODE BAN DEPAN KIRI (BEKAS)" tag={`LB ${e.lb || "-"} · Kode Kiri Bekas`} value={e.fotoBan?.kodeBekasKiri} readOnly={!canCreate}
+                        uploading={isUploading(e.id, "banKodeBekasKiri")} onPreview={() => openLightbox(e.id, "banKodeBekasKiri", e.fotoBan?.kodeBekasKiri, "Kode Ban Kiri (Bekas)", canEdit)}
+                        onPick={(f) => attachPhoto(e.id, "banKodeBekasKiri", f)} />
                     </div>
                   </div>
                 ))}
@@ -1319,10 +1380,19 @@ export default function App() {
             entry={entries.find((en) => en.id === banModalEntry.id) || banModalEntry}
             canCreate={canCreate}
             canEdit={canEdit}
+            isUploading={(slot) => isUploading(banModalEntry.id, slot)}
+            onPreview={(slot, label) => {
+              const liveEntry = entries.find((en) => en.id === banModalEntry.id) || banModalEntry;
+              const key = BAN_FIELD_KEY[slot];
+              openLightbox(banModalEntry.id, slot, liveEntry.fotoBan?.[key], label, canEdit);
+            }}
             onPick={(slot, file) => attachPhoto(banModalEntry.id, slot, file)}
             onRemove={(slot) => removePhoto(banModalEntry.id, slot)}
             onClose={() => setBanModalEntry(null)}
           />
+        )}
+        {lightbox && (
+          <PhotoLightbox item={lightbox} canCreate={canCreate} canEdit={canEdit} onClose={() => setLightbox(null)} />
         )}
       </div>
     </div>
@@ -1346,7 +1416,7 @@ const BAN_FIELD_KEY = {
   banKodeBekasKanan: "kodeBekasKanan", banKodeBekasKiri: "kodeBekasKiri",
 };
 
-function BanPhotoModal({ entry, canCreate, canEdit, onPick, onRemove, onClose }) {
+function BanPhotoModal({ entry, canCreate, canEdit, onPick, onRemove, onClose, isUploading, onPreview }) {
   return (
     <div className="modal-backdrop no-print" onClick={onClose}>
       <div className="modal-card ban-modal" onClick={(e) => e.stopPropagation()}>
@@ -1357,11 +1427,14 @@ function BanPhotoModal({ entry, canCreate, canEdit, onPick, onRemove, onClose })
             const key = BAN_FIELD_KEY[slot];
             const value = entry.fotoBan ? entry.fotoBan[key] : null;
             const inputId = `banmodal-${entry.id}-${slot}`;
+            const uploading = isUploading(slot);
             return (
               <div className="ban-modal-cell" key={slot}>
-                {value ? (
+                {uploading ? (
+                  <div className="thumb-empty ban-thumb uploading"><Loader2 size={15} className="spin" /></div>
+                ) : value ? (
                   <div className="thumb ban-thumb">
-                    <img src={value} alt={label} referrerPolicy="no-referrer" />
+                    <img src={value} alt={label} referrerPolicy="no-referrer" onClick={() => onPreview(slot, label)} className="clickable" />
                     {canEdit && <button className="thumb-remove" onClick={() => onRemove(slot)} title="Hapus foto"><X size={11} /></button>}
                   </div>
                 ) : canCreate ? (
@@ -1378,6 +1451,34 @@ function BanPhotoModal({ entry, canCreate, canEdit, onPick, onRemove, onClose })
           })}
         </div>
         <button className="btn ghost" onClick={onClose}>Tutup</button>
+      </div>
+    </div>
+  );
+}
+
+function PhotoLightbox({ item, onClose, canCreate, canEdit }) {
+  const inputId = useRef(`lightbox-${uid()}`).current;
+  if (!item) return null;
+  return (
+    <div className="modal-backdrop no-print" onClick={onClose}>
+      <div className="lightbox-card" onClick={(e) => e.stopPropagation()}>
+        <div className="lightbox-head">
+          <span>{item.label}</span>
+          <button className="icon-btn" onClick={onClose} title="Tutup"><X size={15} /></button>
+        </div>
+        <img src={item.url} alt={item.label} referrerPolicy="no-referrer" className="lightbox-img" />
+        <div className="btn-row lightbox-actions">
+          {canCreate && (
+            <>
+              <input type="file" accept="image/*" id={inputId} className="file-input"
+                onChange={(e) => { const f = e.target.files?.[0]; if (f) item.onReplace(f); e.target.value = ""; }} />
+              <label htmlFor={inputId} className="btn ghost"><Upload size={15} />Ganti foto</label>
+            </>
+          )}
+          {canEdit && item.onRemove && (
+            <button className="btn ghost danger" onClick={() => { item.onRemove(); onClose(); }}><Trash2 size={15} />Hapus foto</button>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -1402,13 +1503,15 @@ function EmptyState({ text }) {
   return <div className="empty-state"><Camera size={22} /><p>{text}</p></div>;
 }
 
-function PhotoSlot({ label, value, onPick, onRemove, readOnly }) {
+function PhotoSlot({ label, value, onPick, onRemove, readOnly, uploading, onPreview }) {
   const inputId = useRef(`ph-${uid()}`).current;
   return (
     <div className="photo-slot">
-      {value ? (
+      {uploading ? (
+        <div className="thumb-empty uploading"><Loader2 size={13} className="spin" /></div>
+      ) : value ? (
         <div className="thumb">
-          <img src={value} alt={label} referrerPolicy="no-referrer" />
+          <img src={value} alt={label} referrerPolicy="no-referrer" onClick={onPreview} className={onPreview ? "clickable" : ""} />
           {onRemove && <button className="thumb-remove" onClick={onRemove} title="Hapus foto"><X size={11} /></button>}
         </div>
       ) : readOnly ? (
@@ -1424,13 +1527,15 @@ function PhotoSlot({ label, value, onPick, onRemove, readOnly }) {
   );
 }
 
-function BanPageCell({ label, tag, value, onPick, readOnly }) {
+function BanPageCell({ label, tag, value, onPick, readOnly, uploading, onPreview }) {
   const inputId = useRef(`banpg-${uid()}`).current;
   return (
     <figure className="photo-card ban-cell">
       <div className="photo-frame">
-        {value ? (
-          <img src={value} alt={label} referrerPolicy="no-referrer" />
+        {uploading ? (
+          <div className="photo-missing no-print"><div className="photo-missing-label"><Loader2 size={18} className="spin" /><span>Mengunggah…</span></div></div>
+        ) : value ? (
+          <img src={value} alt={label} referrerPolicy="no-referrer" onClick={onPreview} className={onPreview ? "clickable" : ""} />
         ) : readOnly ? (
           <div className="photo-missing no-print">
             <div className="photo-missing-label"><Camera size={18} /><span>Belum ada foto</span></div>
@@ -1448,13 +1553,16 @@ function BanPageCell({ label, tag, value, onPick, readOnly }) {
   );
 }
 
-function PhotoCard({ entry, slot, title, onPick, readOnly }) {  const value = slot === "kondisi" ? entry.fotoKondisi : entry.fotoPasang;
+function PhotoCard({ entry, slot, title, onPick, readOnly, uploading, onPreview }) {
+  const value = slot === "kondisi" ? entry.fotoKondisi : entry.fotoPasang;
   const inputId = useRef(`pc-${uid()}`).current;
   return (
     <figure className={`photo-card ${!value ? "is-empty" : ""}`}>
       <div className="photo-frame">
-        {value ? (
-          <img src={value} alt={entry.namaPart} referrerPolicy="no-referrer" />
+        {uploading ? (
+          <div className="photo-missing no-print"><div className="photo-missing-label"><Loader2 size={18} className="spin" /><span>Mengunggah…</span></div></div>
+        ) : value ? (
+          <img src={value} alt={entry.namaPart} referrerPolicy="no-referrer" onClick={onPreview} className={onPreview ? "clickable" : ""} />
         ) : readOnly ? (
           <div className="photo-missing no-print">
             <div className="photo-missing-label"><Camera size={18} /><span>Belum ada foto</span></div>
