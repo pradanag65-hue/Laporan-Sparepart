@@ -34,14 +34,16 @@ const HEADERS = [
   "FotoBanKodeBaruKananURL", "FotoBanKodeBaruKiriURL",
   "FotoBanBekasKananURL", "FotoBanBekasKiriURL",
   "FotoBanKodeBekasKananURL", "FotoBanKodeBekasKiriURL",
-  // Ban belakang (jumlah=4): 4 posisi (kanan/kiri x luar/dalam), 14 foto total.
+  // Ban belakang (jumlah=4): 4 posisi baru (kanan/kiri x luar/dalam) + kode-nya,
+  // tapi foto BEKAS cuma per sisi (kanan/kiri), sementara KODE bekas per posisi
+  // (kanan/kiri x luar/dalam) — total tetap 14 foto.
   "FotoBanRearBaruKananLuarURL", "FotoBanRearBaruKananDalamURL",
   "FotoBanRearBaruKiriLuarURL", "FotoBanRearBaruKiriDalamURL",
   "FotoBanRearKodeBaruKananLuarURL", "FotoBanRearKodeBaruKananDalamURL",
   "FotoBanRearKodeBaruKiriLuarURL", "FotoBanRearKodeBaruKiriDalamURL",
-  "FotoBanRearBekasKananLuarURL", "FotoBanRearBekasKananDalamURL",
-  "FotoBanRearBekasKiriLuarURL", "FotoBanRearBekasKiriDalamURL",
-  "FotoBanRearKodeBekasKananURL", "FotoBanRearKodeBekasKiriURL",
+  "FotoBanRearBekasKananURL", "FotoBanRearBekasKiriURL",
+  "FotoBanRearKodeBekasKananLuarURL", "FotoBanRearKodeBekasKananDalamURL",
+  "FotoBanRearKodeBekasKiriLuarURL", "FotoBanRearKodeBekasKiriDalamURL",
 ];
 // Peta nama "slot" foto -> nomor kolom di sheet Entries (1-based).
 const SLOT_COLUMNS = {
@@ -54,9 +56,9 @@ const SLOT_COLUMNS = {
   banRearBaruKiriLuar: 22, banRearBaruKiriDalam: 23,
   banRearKodeBaruKananLuar: 24, banRearKodeBaruKananDalam: 25,
   banRearKodeBaruKiriLuar: 26, banRearKodeBaruKiriDalam: 27,
-  banRearBekasKananLuar: 28, banRearBekasKananDalam: 29,
-  banRearBekasKiriLuar: 30, banRearBekasKiriDalam: 31,
-  banRearKodeBekasKanan: 32, banRearKodeBekasKiri: 33,
+  banRearBekasKanan: 28, banRearBekasKiri: 29,
+  banRearKodeBekasKananLuar: 30, banRearKodeBekasKananDalam: 31,
+  banRearKodeBekasKiriLuar: 32, banRearKodeBekasKiriDalam: 33,
 };
 const USER_HEADERS = ["Username", "Password", "Role"];
 const LOG_HEADERS = ["Timestamp", "Username", "Role", "Action", "Detail"];
@@ -182,12 +184,12 @@ function sheetToObjects_() {
         kodeBaruKananDalam: obj.FotoBanRearKodeBaruKananDalamURL || null,
         kodeBaruKiriLuar: obj.FotoBanRearKodeBaruKiriLuarURL || null,
         kodeBaruKiriDalam: obj.FotoBanRearKodeBaruKiriDalamURL || null,
-        bekasKananLuar: obj.FotoBanRearBekasKananLuarURL || null,
-        bekasKananDalam: obj.FotoBanRearBekasKananDalamURL || null,
-        bekasKiriLuar: obj.FotoBanRearBekasKiriLuarURL || null,
-        bekasKiriDalam: obj.FotoBanRearBekasKiriDalamURL || null,
-        kodeBekasKanan: obj.FotoBanRearKodeBekasKananURL || null,
-        kodeBekasKiri: obj.FotoBanRearKodeBekasKiriURL || null,
+        bekasKanan: obj.FotoBanRearBekasKananURL || null,
+        bekasKiri: obj.FotoBanRearBekasKiriURL || null,
+        kodeBekasKananLuar: obj.FotoBanRearKodeBekasKananLuarURL || null,
+        kodeBekasKananDalam: obj.FotoBanRearKodeBekasKananDalamURL || null,
+        kodeBekasKiriLuar: obj.FotoBanRearKodeBekasKiriLuarURL || null,
+        kodeBekasKiriDalam: obj.FotoBanRearKodeBekasKiriDalamURL || null,
       },
       rowIndex: i + 1,
     });
