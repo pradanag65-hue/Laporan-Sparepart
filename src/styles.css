@@ -327,7 +327,13 @@ body { background: var(--surface); }
 /* ---------- table ---------- */
 .table-wrap { overflow-x: auto; border-radius: 14px; border: 1px solid var(--line); }
 table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
-thead th { text-align: left; font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--accent-dark); font-weight: 700; padding: 11px 10px; background: var(--surface-2); white-space: nowrap; }
+thead th { text-align: left; font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--accent-dark); font-weight: 700; padding: 11px 10px; background: var(--surface-2); white-space: nowrap; position: relative; }
+.resizable-table th { user-select: none; }
+.col-resizer { position: absolute; top: 0; right: -1px; width: 8px; height: 100%; cursor: col-resize; z-index: 2; }
+.col-resizer:hover, .col-resizer:active { background: rgba(47, 111, 237, 0.35); }
+.truncate-cell { max-width: 0; }
+.truncate-cell span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.resizable-table .cell-input { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 tbody td { padding: 8px 10px; border-bottom: 1px solid #eef1fb; vertical-align: middle; }
 tbody tr:nth-child(even) { background: #fafbff; }
 tbody tr:hover { background: var(--surface-2); }
