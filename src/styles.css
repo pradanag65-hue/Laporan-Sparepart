@@ -235,10 +235,24 @@ body { background: var(--surface); }
 .ban-page-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .ban-page-grid .ban-cell .photo-frame { aspect-ratio: 4 / 3; }
 @media print {
-  @page { size: 215.9mm 330.2mm; margin: 12mm; } /* F4 / Folio, supaya 8 foto ban muat 1 halaman */
+  @page { size: 215.9mm 330.2mm; margin: 10mm; } /* F4 / Folio, supaya 8 foto ban muat 1 halaman */
   .force-break { break-before: page; page-break-before: always; }
-  .ban-page-grid { gap: 8px; }
-  .ban-page-grid .ban-cell .photo-frame { aspect-ratio: 4 / 3.2; }
+
+  /* Paksa tinggi grid pas 1 halaman (bukan andalkan aspect-ratio gambar,
+     yang gampang meleset dan bikin baris ke-4 kepental ke halaman lain). */
+  .ban-page { display: flex; flex-direction: column; min-height: calc(330.2mm - 20mm); }
+  .ban-page .sheet-head { flex: 0 0 auto; margin-bottom: 6px; }
+  .ban-page .sheet-head h3 { font-size: 12.5px; }
+  .ban-page .sheet-head p { font-size: 10.5px; }
+  .ban-page-grid {
+    flex: 1 1 auto;
+    grid-template-rows: repeat(4, 1fr);
+    gap: 6px;
+  }
+  .ban-page-grid .photo-card { display: flex; flex-direction: column; min-height: 0; }
+  .ban-page-grid .ban-cell .photo-frame { flex: 1 1 auto; aspect-ratio: unset; min-height: 0; }
+  .ban-page-grid .photo-card figcaption { flex: 0 0 auto; padding: 3px 8px; }
+  .ban-page-grid .photo-card figcaption strong { font-size: 10px; }
 }
 
 /* ---------- modal kelola 8 foto ban ---------- */
