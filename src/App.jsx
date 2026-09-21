@@ -1607,7 +1607,7 @@ function PhotoSlot({ label, value, onPick, onRemove, readOnly, uploading, onPrev
 function BanPageCell({ label, tag, value, onPick, readOnly, uploading, onPreview }) {
   const inputId = useRef(`banpg-${uid()}`).current;
   return (
-    <figure className="photo-card ban-cell">
+    <figure className={`photo-card ban-cell ${!value ? "is-empty" : ""}`}>
       <div className="photo-frame">
         {uploading ? (
           <div className="photo-missing no-print"><div className="photo-missing-label"><Loader2 size={18} className="spin" /><span>Mengunggah…</span></div></div>
