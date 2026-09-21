@@ -1196,7 +1196,7 @@ export default function App() {
                         {b.totalPages > 1 ? ` · Halaman ${b.page}/${b.totalPages}` : ""}
                       </p>
                     </div>
-                    <div className="ban-page-grid">
+                    <div className="ban-page-grid" style={{ "--rows": Math.ceil(b.chunk.length / 2) }}>
                       {b.chunk.map(({ slot, label }) => (
                         <BanPageCell key={slot} label={label} tag={`LB ${b.entry.lb || "-"} · ${label}`}
                           value={getBanPhotoValue(b.entry, slot)} readOnly={!canCreate}
