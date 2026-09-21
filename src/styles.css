@@ -246,7 +246,7 @@ body { background: var(--surface); }
   .ban-page .sheet-head p { font-size: 10.5px; }
   .ban-page-grid {
     flex: 1 1 auto;
-    grid-template-rows: repeat(4, 1fr);
+    grid-template-rows: repeat(var(--rows, 4), 1fr);
     gap: 6px;
   }
   .ban-page-grid .photo-card { display: flex; flex-direction: column; min-height: 0; }
