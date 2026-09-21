@@ -69,12 +69,12 @@ const BAN_REAR_SLOTS = [
   { slot: "banRearKodeBaruKananDalam", label: "Kode Ban Kanan Dalam (Baru)" },
   { slot: "banRearKodeBaruKiriLuar", label: "Kode Ban Kiri Luar (Baru)" },
   { slot: "banRearKodeBaruKiriDalam", label: "Kode Ban Kiri Dalam (Baru)" },
-  { slot: "banRearBekasKananLuar", label: "Ban Kanan Luar (Bekas)" },
-  { slot: "banRearBekasKananDalam", label: "Ban Kanan Dalam (Bekas)" },
-  { slot: "banRearBekasKiriLuar", label: "Ban Kiri Luar (Bekas)" },
-  { slot: "banRearBekasKiriDalam", label: "Ban Kiri Dalam (Bekas)" },
-  { slot: "banRearKodeBekasKanan", label: "Kode Ban Kanan (Bekas)" },
-  { slot: "banRearKodeBekasKiri", label: "Kode Ban Kiri (Bekas)" },
+  { slot: "banRearBekasKanan", label: "Ban Belakang Kanan (Bekas)" },
+  { slot: "banRearBekasKiri", label: "Ban Belakang Kiri (Bekas)" },
+  { slot: "banRearKodeBekasKananLuar", label: "Kode Ban Kanan Luar (Bekas)" },
+  { slot: "banRearKodeBekasKananDalam", label: "Kode Ban Kanan Dalam (Bekas)" },
+  { slot: "banRearKodeBekasKiriLuar", label: "Kode Ban Kiri Luar (Bekas)" },
+  { slot: "banRearKodeBekasKiriDalam", label: "Kode Ban Kiri Dalam (Bekas)" },
 ];
 
 function banSlotsFor(kind) {
@@ -91,9 +91,9 @@ const BAN_FIELD_MAP = {
   banRearBaruKiriLuar: ["fotoBanRear", "baruKiriLuar"], banRearBaruKiriDalam: ["fotoBanRear", "baruKiriDalam"],
   banRearKodeBaruKananLuar: ["fotoBanRear", "kodeBaruKananLuar"], banRearKodeBaruKananDalam: ["fotoBanRear", "kodeBaruKananDalam"],
   banRearKodeBaruKiriLuar: ["fotoBanRear", "kodeBaruKiriLuar"], banRearKodeBaruKiriDalam: ["fotoBanRear", "kodeBaruKiriDalam"],
-  banRearBekasKananLuar: ["fotoBanRear", "bekasKananLuar"], banRearBekasKananDalam: ["fotoBanRear", "bekasKananDalam"],
-  banRearBekasKiriLuar: ["fotoBanRear", "bekasKiriLuar"], banRearBekasKiriDalam: ["fotoBanRear", "bekasKiriDalam"],
-  banRearKodeBekasKanan: ["fotoBanRear", "kodeBekasKanan"], banRearKodeBekasKiri: ["fotoBanRear", "kodeBekasKiri"],
+  banRearBekasKanan: ["fotoBanRear", "bekasKanan"], banRearBekasKiri: ["fotoBanRear", "bekasKiri"],
+  banRearKodeBekasKananLuar: ["fotoBanRear", "kodeBekasKananLuar"], banRearKodeBekasKananDalam: ["fotoBanRear", "kodeBekasKananDalam"],
+  banRearKodeBekasKiriLuar: ["fotoBanRear", "kodeBekasKiriLuar"], banRearKodeBekasKiriDalam: ["fotoBanRear", "kodeBekasKiriDalam"],
 };
 function getBanPhotoValue(entry, slot) {
   const mapping = BAN_FIELD_MAP[slot];
@@ -208,6 +208,10 @@ export default function App() {
   const [backupBusy, setBackupBusy] = useState(false);
   const [importProgress, setImportProgress] = useState(null);
   const [search, setSearch] = useState("");
+  const [colWidths, setColWidths] = useState({
+    tanggal: 122, lb: 56, namaPart: 220, kode: 128, jumlah: 56, satuan: 90, mekanik: 130, foto: 150,
+  });
+  const colResizeRef = useRef(null);
   const [banModalEntry, setBanModalEntry] = useState(null);
   const [lightbox, setLightbox] = useState(null);
   const [uploadingKeys, setUploadingKeys] = useState(() => new Set());
@@ -525,8 +529,25 @@ export default function App() {
     }
   }
 
-  function isUploading(id, slot) {
-    return uploadingKeys.has(`${id}:${slot}`);
+  const onColResizeMove = useCallback((e) => {
+    const r = colResizeRef.current;
+    if (!r) return;
+    const delta = e.clientX - r.startX;
+    setColWidths((prev) => ({ ...prev, [r.key]: Math.max(44, r.startWidth + delta) }));
+  }, []);
+  const onColResizeUp = useCallback(() => {
+    colResizeRef.current = null;
+    window.removeEventListener("mousemove", onColResizeMove);
+    window.removeEventListener("mouseup", onColResizeUp);
+  }, [onColResizeMove]);
+  function startColResize(e, key) {
+    e.preventDefault();
+    colResizeRef.current = { key, startX: e.clientX, startWidth: colWidths[key] };
+    window.addEventListener("mousemove", onColResizeMove);
+    window.addEventListener("mouseup", onColResizeUp);
+  }
+
+  function isUploading(id, slot) {    return uploadingKeys.has(`${id}:${slot}`);
   }
 
   function openLightbox(id, slot, url, label, allowRemove) {
@@ -826,7 +847,7 @@ export default function App() {
           <div className="brand-mark"><Leaf size={19} strokeWidth={2.2} /></div>
           <div>
             <h1>Rekap Barang Bekas</h1>
-            <p>PT AMI - Trans Jogja</p>
+            <p>Dinas Perhubungan DIY - Trans Jogja</p>
           </div>
         </div>
 
@@ -870,7 +891,7 @@ export default function App() {
 
         <div className="sidebar-footer">
           <Bus size={54} strokeWidth={1.3} />
-          <p>TRANSJOGJA<br />Penghubung<br />Setiap Cerita</p>
+          <p>Bersama<br />Untuk Transportasi<br />Yang Lebih Baik</p>
         </div>
       </aside>
 
@@ -888,7 +909,7 @@ export default function App() {
           <div className="hero-blobs" aria-hidden="true"><span className="blob b1" /><span className="blob b2" /><span className="blob b3" /></div>
           <p className="hero-kicker">Selamat Datang</p>
           <h2>{activeNav.label}</h2>
-          <p className="hero-sub">PT AMI - Trans Jogja</p>
+          <p className="hero-sub">Dinas Perhubungan DIY - Trans Jogja</p>
         </div>
 
         {tab === "input" && (
@@ -964,7 +985,7 @@ export default function App() {
                   <div className="card-icon"><ClipboardList size={16} /></div>
                   <div>
                     <h2>Rekap tersimpan</h2>
-                    <p className="card-desc">Data yang sudah tersimpan akan muncul di sini.</p>
+                    <p className="card-desc">Data yang sudah tersimpan akan muncul di sini. Seret garis di sisi kanan judul kolom untuk melebar/mengecilkan lebarnya.</p>
                   </div>
                 </div>
                 <div className="table-toolbar">
@@ -991,11 +1012,29 @@ export default function App() {
                 <EmptyState text={`Tidak ada data yang cocok dengan filter saat ini.`} />
               ) : (
                 <div className="table-wrap">
-                  <table>
+                  <table className="resizable-table" style={{ tableLayout: "fixed" }}>
+                    <colgroup>
+                      <col style={{ width: colWidths.tanggal }} />
+                      <col style={{ width: colWidths.lb }} />
+                      <col style={{ width: colWidths.namaPart }} />
+                      <col style={{ width: colWidths.kode }} />
+                      <col style={{ width: colWidths.jumlah }} />
+                      <col style={{ width: colWidths.satuan }} />
+                      <col style={{ width: colWidths.mekanik }} />
+                      <col style={{ width: colWidths.foto }} />
+                      {canEdit && <col style={{ width: 50 }} />}
+                    </colgroup>
                     <thead>
                       <tr>
-                        <th>Tanggal</th><th>LB</th><th>Nama spare part</th><th>Kode</th>
-                        <th>Jml</th><th>Satuan</th><th>Mekanik</th><th>Foto</th>{canEdit && <th></th>}
+                        <th>Tanggal<span className="col-resizer" onMouseDown={(e) => startColResize(e, "tanggal")} /></th>
+                        <th>LB<span className="col-resizer" onMouseDown={(e) => startColResize(e, "lb")} /></th>
+                        <th>Nama spare part<span className="col-resizer" onMouseDown={(e) => startColResize(e, "namaPart")} /></th>
+                        <th>Kode<span className="col-resizer" onMouseDown={(e) => startColResize(e, "kode")} /></th>
+                        <th>Jml<span className="col-resizer" onMouseDown={(e) => startColResize(e, "jumlah")} /></th>
+                        <th>Satuan<span className="col-resizer" onMouseDown={(e) => startColResize(e, "satuan")} /></th>
+                        <th>Mekanik<span className="col-resizer" onMouseDown={(e) => startColResize(e, "mekanik")} /></th>
+                        <th>Foto<span className="col-resizer" onMouseDown={(e) => startColResize(e, "foto")} /></th>
+                        {canEdit && <th></th>}
                       </tr>
                     </thead>
                     <tbody>
@@ -1015,12 +1054,12 @@ export default function App() {
                                 onBlur={(ev) => commitField(e.id, "lb", ev.target.value)} />
                             ) : e.lb}
                           </td>
-                          <td>
+                          <td className="truncate-cell">
                             {canEdit ? (
-                              <input className="cell-input" value={e.namaPart}
+                              <input className="cell-input" title={e.namaPart} value={e.namaPart}
                                 onChange={(ev) => updateFieldLocal(e.id, "namaPart", ev.target.value)}
                                 onBlur={(ev) => commitField(e.id, "namaPart", ev.target.value)} />
-                            ) : e.namaPart}
+                            ) : <span title={e.namaPart}>{e.namaPart}</span>}
                           </td>
                           <td className="mono">
                             {canEdit ? (
