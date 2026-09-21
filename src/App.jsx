@@ -39,6 +39,77 @@ function formatDateTimeID(iso) {
 function isBanEntry(e) {
   return /\bban\b/i.test(e.namaPart || "");
 }
+// Jumlah=2 -> ban depan (8 foto: kanan/kiri x baru/bekas x foto/kode).
+// Jumlah=4 -> ban belakang, dual/kembar (14 foto: 4 posisi luar-dalam kanan-kiri).
+// Selain itu (nama mengandung "ban" tapi jumlah lain) dianggap depan sebagai default aman.
+function getBanKind(e) {
+  if (!isBanEntry(e)) return null;
+  const n = parseFloat(String(e.jumlah).replace(",", "."));
+  if (n === 4) return "belakang";
+  return "depan";
+}
+
+const BAN_FRONT_SLOTS = [
+  { slot: "banBaruKanan", label: "Ban Kanan (Baru)" },
+  { slot: "banBaruKiri", label: "Ban Kiri (Baru)" },
+  { slot: "banKodeBaruKanan", label: "Kode Ban Kanan (Baru)" },
+  { slot: "banKodeBaruKiri", label: "Kode Ban Kiri (Baru)" },
+  { slot: "banBekasKanan", label: "Ban Kanan (Bekas)" },
+  { slot: "banBekasKiri", label: "Ban Kiri (Bekas)" },
+  { slot: "banKodeBekasKanan", label: "Kode Ban Kanan (Bekas)" },
+  { slot: "banKodeBekasKiri", label: "Kode Ban Kiri (Bekas)" },
+];
+
+const BAN_REAR_SLOTS = [
+  { slot: "banRearBaruKananLuar", label: "Ban Kanan Luar (Baru)" },
+  { slot: "banRearBaruKananDalam", label: "Ban Kanan Dalam (Baru)" },
+  { slot: "banRearBaruKiriLuar", label: "Ban Kiri Luar (Baru)" },
+  { slot: "banRearBaruKiriDalam", label: "Ban Kiri Dalam (Baru)" },
+  { slot: "banRearKodeBaruKananLuar", label: "Kode Ban Kanan Luar (Baru)" },
+  { slot: "banRearKodeBaruKananDalam", label: "Kode Ban Kanan Dalam (Baru)" },
+  { slot: "banRearKodeBaruKiriLuar", label: "Kode Ban Kiri Luar (Baru)" },
+  { slot: "banRearKodeBaruKiriDalam", label: "Kode Ban Kiri Dalam (Baru)" },
+  { slot: "banRearBekasKananLuar", label: "Ban Kanan Luar (Bekas)" },
+  { slot: "banRearBekasKananDalam", label: "Ban Kanan Dalam (Bekas)" },
+  { slot: "banRearBekasKiriLuar", label: "Ban Kiri Luar (Bekas)" },
+  { slot: "banRearBekasKiriDalam", label: "Ban Kiri Dalam (Bekas)" },
+  { slot: "banRearKodeBekasKanan", label: "Kode Ban Kanan (Bekas)" },
+  { slot: "banRearKodeBekasKiri", label: "Kode Ban Kiri (Bekas)" },
+];
+
+function banSlotsFor(kind) {
+  return kind === "belakang" ? BAN_REAR_SLOTS : BAN_FRONT_SLOTS;
+}
+
+// slot -> [namaField di entry, key di dalam field itu] — dipakai untuk baca/tulis state lokal.
+const BAN_FIELD_MAP = {
+  banBaruKanan: ["fotoBan", "baruKanan"], banBaruKiri: ["fotoBan", "baruKiri"],
+  banKodeBaruKanan: ["fotoBan", "kodeBaruKanan"], banKodeBaruKiri: ["fotoBan", "kodeBaruKiri"],
+  banBekasKanan: ["fotoBan", "bekasKanan"], banBekasKiri: ["fotoBan", "bekasKiri"],
+  banKodeBekasKanan: ["fotoBan", "kodeBekasKanan"], banKodeBekasKiri: ["fotoBan", "kodeBekasKiri"],
+  banRearBaruKananLuar: ["fotoBanRear", "baruKananLuar"], banRearBaruKananDalam: ["fotoBanRear", "baruKananDalam"],
+  banRearBaruKiriLuar: ["fotoBanRear", "baruKiriLuar"], banRearBaruKiriDalam: ["fotoBanRear", "baruKiriDalam"],
+  banRearKodeBaruKananLuar: ["fotoBanRear", "kodeBaruKananLuar"], banRearKodeBaruKananDalam: ["fotoBanRear", "kodeBaruKananDalam"],
+  banRearKodeBaruKiriLuar: ["fotoBanRear", "kodeBaruKiriLuar"], banRearKodeBaruKiriDalam: ["fotoBanRear", "kodeBaruKiriDalam"],
+  banRearBekasKananLuar: ["fotoBanRear", "bekasKananLuar"], banRearBekasKananDalam: ["fotoBanRear", "bekasKananDalam"],
+  banRearBekasKiriLuar: ["fotoBanRear", "bekasKiriLuar"], banRearBekasKiriDalam: ["fotoBanRear", "bekasKiriDalam"],
+  banRearKodeBekasKanan: ["fotoBanRear", "kodeBekasKanan"], banRearKodeBekasKiri: ["fotoBanRear", "kodeBekasKiri"],
+};
+function getBanPhotoValue(entry, slot) {
+  const mapping = BAN_FIELD_MAP[slot];
+  if (!mapping) return null;
+  const [obj, field] = mapping;
+  return entry[obj] ? entry[obj][field] : null;
+}
+function countBanPhotos(entry, kind) {
+  return banSlotsFor(kind).filter(({ slot }) => getBanPhotoValue(entry, slot)).length;
+}
+// Pecah daftar slot jadi kelompok maksimal 8 foto per halaman (ukuran Folio).
+function chunkSlots(slots, size = 8) {
+  const chunks = [];
+  for (let i = 0; i < slots.length; i += size) chunks.push(slots.slice(i, i + size));
+  return chunks;
+}
 
 function compressImage(file, maxDim = 1280, quality = 0.78) {
   return new Promise((resolve, reject) => {
@@ -126,7 +197,9 @@ export default function App() {
   const [loadError, setLoadError] = useState("");
   const [tab, setTab] = useState("input");
   const [draft, setDraft] = useState(emptyDraft());
-  const [lampiranDate, setLampiranDate] = useState("");
+  const [lampiranSearch, setLampiranSearch] = useState("");
+  const [lampiranDateFrom, setLampiranDateFrom] = useState("");
+  const [lampiranDateTo, setLampiranDateTo] = useState("");
   const [toast, setToast] = useState(null);
   const [busy, setBusy] = useState(false);
   const [confirmReset, setConfirmReset] = useState(false);
@@ -265,8 +338,11 @@ export default function App() {
   );
 
   useEffect(() => {
-    if (!lampiranDate && tanggalList.length) setLampiranDate(tanggalList[0]);
-  }, [tanggalList, lampiranDate]);
+    if (!lampiranDateFrom && !lampiranDateTo && tanggalList.length) {
+      setLampiranDateFrom(tanggalList[0]);
+      setLampiranDateTo(tanggalList[0]);
+    }
+  }, [tanggalList, lampiranDateFrom, lampiranDateTo]);
 
   const sortedEntries = useMemo(
     () =>
@@ -277,12 +353,37 @@ export default function App() {
     [entries]
   );
 
-  const lampiranEntries = useMemo(
-    () => sortedEntries.filter((e) => e.tanggal === lampiranDate),
-    [sortedEntries, lampiranDate]
-  );
-  const normalLampiranEntries = useMemo(() => lampiranEntries.filter((e) => !isBanEntry(e)), [lampiranEntries]);
-  const banLampiranEntries = useMemo(() => lampiranEntries.filter((e) => isBanEntry(e)), [lampiranEntries]);
+  const lampiranFilteredEntries = useMemo(() => {
+    const q = lampiranSearch.trim().toLowerCase();
+    return sortedEntries.filter((e) => {
+      if (lampiranDateFrom && e.tanggal < lampiranDateFrom) return false;
+      if (lampiranDateTo && e.tanggal > lampiranDateTo) return false;
+      if (!q) return true;
+      return [e.namaPart, e.kodeBarang, e.lb, e.mekanik, e.satuan, formatTanggalID(e.tanggal)]
+        .join(" ").toLowerCase().includes(q);
+    });
+  }, [sortedEntries, lampiranSearch, lampiranDateFrom, lampiranDateTo]);
+
+  // Susun jadi daftar "blok" cetak: satu blok untuk semua part biasa per tanggal,
+  // dan satu blok per halaman untuk tiap entri ban (dipecah maks. 8 foto/halaman).
+  const lampiranBlocks = useMemo(() => {
+    const blocks = [];
+    const dates = Array.from(new Set(lampiranFilteredEntries.map((e) => e.tanggal))).sort();
+    dates.forEach((date) => {
+      const dayEntries = lampiranFilteredEntries.filter((e) => e.tanggal === date);
+      const normal = dayEntries.filter((e) => !isBanEntry(e));
+      const bans = dayEntries.filter((e) => isBanEntry(e));
+      if (normal.length) blocks.push({ type: "normal", date, entries: normal });
+      bans.forEach((entry) => {
+        const kind = getBanKind(entry);
+        const chunks = chunkSlots(banSlotsFor(kind), 8);
+        chunks.forEach((chunk, ci) => {
+          blocks.push({ type: "ban", date, entry, kind, chunk, page: ci + 1, totalPages: chunks.length });
+        });
+      });
+    });
+    return blocks;
+  }, [lampiranFilteredEntries]);
 
   const filteredEntries = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -389,8 +490,8 @@ export default function App() {
           if (e.id !== id) return e;
           if (slot === "kondisi") return { ...e, fotoKondisi: url };
           if (slot === "pasang") return { ...e, fotoPasang: url };
-          const banField = BAN_FIELD_KEY[slot];
-          if (banField) return { ...e, fotoBan: { ...(e.fotoBan || {}), [banField]: url } };
+          const mapping = BAN_FIELD_MAP[slot];
+          if (mapping) { const [obj, field] = mapping; return { ...e, [obj]: { ...(e[obj] || {}), [field]: url } }; }
           return e;
         })
       );
@@ -413,8 +514,8 @@ export default function App() {
           if (e.id !== id) return e;
           if (slot === "kondisi") return { ...e, fotoKondisi: null };
           if (slot === "pasang") return { ...e, fotoPasang: null };
-          const banField = BAN_FIELD_KEY[slot];
-          if (banField) return { ...e, fotoBan: { ...(e.fotoBan || {}), [banField]: null } };
+          const mapping = BAN_FIELD_MAP[slot];
+          if (mapping) { const [obj, field] = mapping; return { ...e, [obj]: { ...(e[obj] || {}), [field]: null } }; }
           return e;
         })
       );
@@ -567,8 +668,8 @@ export default function App() {
   }
 
   function triggerPrint() {
-    if (!lampiranEntries.length) {
-      notify("Pilih tanggal yang punya data dulu.", "err");
+    if (!lampiranFilteredEntries.length) {
+      notify("Tidak ada data pada filter ini untuk dicetak.", "err");
       return;
     }
     window.print();
@@ -954,7 +1055,7 @@ export default function App() {
                             {isBanEntry(e) ? (
                               <button className="btn ghost tiny" onClick={() => setBanModalEntry(e)}>
                                 <ImageIcon size={13} />
-                                {[e.fotoBan?.baruKanan, e.fotoBan?.baruKiri, e.fotoBan?.kodeBaruKanan, e.fotoBan?.kodeBaruKiri, e.fotoBan?.bekasKanan, e.fotoBan?.bekasKiri, e.fotoBan?.kodeBekasKanan, e.fotoBan?.kodeBekasKiri].filter(Boolean).length}/8 foto
+                                {countBanPhotos(e, getBanKind(e))}/{banSlotsFor(getBanKind(e)).length} foto
                               </button>
                             ) : (
                               <div className="photo-slots">
@@ -994,39 +1095,43 @@ export default function App() {
                 <div className="card-title-row">
                   <div className="card-icon rust"><Images size={16} /></div>
                   <div>
-                    <h2>Lampiran foto per tanggal</h2>
-                    <p className="card-desc">Setiap baris rekap otomatis jadi satu blok foto, mengikuti data di Google Sheet. Khusus part bernama "ban", otomatis dibuatkan halaman tersendiri berisi 8 foto per nomor lambung.</p>
+                    <h2>Lampiran foto</h2>
+                    <p className="card-desc">Setiap baris rekap otomatis jadi satu blok foto. Part "ban" dengan jumlah=2 dapat 8 foto (depan), jumlah=4 dapat 14 foto (belakang, otomatis terbagi jadi beberapa halaman maksimal 8 foto/halaman).</p>
                   </div>
                 </div>
                 <div className="lampiran-controls">
-                  <div className="select-wrap">
-                    <select value={lampiranDate} onChange={(e) => setLampiranDate(e.target.value)}>
-                      {tanggalList.length === 0 && <option value="">Belum ada tanggal</option>}
-                      {tanggalList.map((t) => <option key={t} value={t}>{formatTanggalID(t)}</option>)}
-                    </select>
-                    <ChevronDown size={14} className="select-caret" />
+                  <div className="search-wrap">
+                    <Search size={14} className="search-icon" />
+                    <input type="text" placeholder="Cari nama part, kode, LB, mekanik…" value={lampiranSearch} onChange={(e) => setLampiranSearch(e.target.value)} />
+                    {lampiranSearch && <button className="search-clear" onClick={() => setLampiranSearch("")} title="Bersihkan pencarian"><X size={13} /></button>}
+                  </div>
+                  <div className="date-range">
+                    <input type="date" value={lampiranDateFrom} onChange={(e) => setLampiranDateFrom(e.target.value)} title="Dari tanggal" />
+                    <span>–</span>
+                    <input type="date" value={lampiranDateTo} onChange={(e) => setLampiranDateTo(e.target.value)} title="Sampai tanggal" />
                   </div>
                   <button className="btn primary" onClick={triggerPrint}><Printer size={16} />Cetak / simpan PDF</button>
                 </div>
               </div>
+              <span className="count-pill">{lampiranFilteredEntries.length} data cocok filter</span>
             </section>
 
-            {!lampiranEntries.length ? (
-              <div className="no-print"><EmptyState text="Tidak ada data foto untuk tanggal ini. Pilih tanggal lain atau tambah data dulu." /></div>
+            {!lampiranFilteredEntries.length ? (
+              <div className="no-print"><EmptyState text="Tidak ada data untuk filter ini. Ubah rentang tanggal atau kata kunci pencarian." /></div>
             ) : (
-              <>
-                {normalLampiranEntries.length > 0 && (
-                  <div className="print-area">
+              lampiranBlocks.map((b, i) =>
+                b.type === "normal" ? (
+                  <div className={`print-area ${i > 0 ? "force-break" : ""}`} key={`normal-${b.date}`}>
                     <div className="sheet-head">
                       <h3>LAMPIRAN FOTO SPARE PART BEKAS</h3>
-                      <p>{formatTanggalID(lampiranDate)}</p>
+                      <p>{formatTanggalID(b.date)}</p>
                     </div>
                     <div className="grid-columns-head">
                       <span>Barang (kondisi)</span>
                       <span>Lampiran (pemasangan)</span>
                     </div>
                     <div className="photo-rows">
-                      {normalLampiranEntries.map((e) => (
+                      {b.entries.map((e) => (
                         <div className={`photo-row ${!e.fotoKondisi && !e.fotoPasang ? "print-hide-row" : ""}`} key={e.id}>
                           <PhotoCard entry={e} slot="kondisi" title="(BARU DAN BEKAS)" readOnly={!canCreate}
                             uploading={isUploading(e.id, "kondisi")}
@@ -1040,43 +1145,30 @@ export default function App() {
                       ))}
                     </div>
                   </div>
-                )}
-
-                {banLampiranEntries.map((e, idx) => (
-                  <div className={`print-area ban-page ${idx > 0 || normalLampiranEntries.length > 0 ? "force-break" : ""}`} key={e.id}>
+                ) : (
+                  <div className={`print-area ban-page ${i > 0 ? "force-break" : ""}`} key={`${b.entry.id}-${b.page}`}>
                     <div className="sheet-head">
-                      <h3>PENGGANTIAN {(e.namaPart || "BAN").toUpperCase()} DEPAN KANAN – DEPAN KIRI</h3>
-                      <p>BUS LAMBUNG {e.lb || "-"} · {formatTanggalID(e.tanggal)}</p>
+                      <h3>
+                        PENGGANTIAN {(b.entry.namaPart || "BAN").toUpperCase()}{" "}
+                        {b.kind === "belakang" ? "BELAKANG KANAN – BELAKANG KIRI" : "DEPAN KANAN – DEPAN KIRI"}
+                      </h3>
+                      <p>
+                        BUS LAMBUNG {b.entry.lb || "-"} · {formatTanggalID(b.date)}
+                        {b.totalPages > 1 ? ` · Halaman ${b.page}/${b.totalPages}` : ""}
+                      </p>
                     </div>
                     <div className="ban-page-grid">
-                      <BanPageCell label="BAN DEPAN KANAN (BARU)" tag={`LB ${e.lb || "-"} · Kanan Baru`} value={e.fotoBan?.baruKanan} readOnly={!canCreate}
-                        uploading={isUploading(e.id, "banBaruKanan")} onPreview={() => openLightbox(e.id, "banBaruKanan", e.fotoBan?.baruKanan, "Ban Kanan (Baru)", canEdit)}
-                        onPick={(f) => attachPhoto(e.id, "banBaruKanan", f)} />
-                      <BanPageCell label="BAN DEPAN KIRI (BARU)" tag={`LB ${e.lb || "-"} · Kiri Baru`} value={e.fotoBan?.baruKiri} readOnly={!canCreate}
-                        uploading={isUploading(e.id, "banBaruKiri")} onPreview={() => openLightbox(e.id, "banBaruKiri", e.fotoBan?.baruKiri, "Ban Kiri (Baru)", canEdit)}
-                        onPick={(f) => attachPhoto(e.id, "banBaruKiri", f)} />
-                      <BanPageCell label="KODE BAN DEPAN KANAN (BARU)" tag={`LB ${e.lb || "-"} · Kode Kanan Baru`} value={e.fotoBan?.kodeBaruKanan} readOnly={!canCreate}
-                        uploading={isUploading(e.id, "banKodeBaruKanan")} onPreview={() => openLightbox(e.id, "banKodeBaruKanan", e.fotoBan?.kodeBaruKanan, "Kode Ban Kanan (Baru)", canEdit)}
-                        onPick={(f) => attachPhoto(e.id, "banKodeBaruKanan", f)} />
-                      <BanPageCell label="KODE BAN DEPAN KIRI (BARU)" tag={`LB ${e.lb || "-"} · Kode Kiri Baru`} value={e.fotoBan?.kodeBaruKiri} readOnly={!canCreate}
-                        uploading={isUploading(e.id, "banKodeBaruKiri")} onPreview={() => openLightbox(e.id, "banKodeBaruKiri", e.fotoBan?.kodeBaruKiri, "Kode Ban Kiri (Baru)", canEdit)}
-                        onPick={(f) => attachPhoto(e.id, "banKodeBaruKiri", f)} />
-                      <BanPageCell label="BAN DEPAN KANAN (BEKAS)" tag={`LB ${e.lb || "-"} · Kanan Bekas`} value={e.fotoBan?.bekasKanan} readOnly={!canCreate}
-                        uploading={isUploading(e.id, "banBekasKanan")} onPreview={() => openLightbox(e.id, "banBekasKanan", e.fotoBan?.bekasKanan, "Ban Kanan (Bekas)", canEdit)}
-                        onPick={(f) => attachPhoto(e.id, "banBekasKanan", f)} />
-                      <BanPageCell label="BAN DEPAN KIRI (BEKAS)" tag={`LB ${e.lb || "-"} · Kiri Bekas`} value={e.fotoBan?.bekasKiri} readOnly={!canCreate}
-                        uploading={isUploading(e.id, "banBekasKiri")} onPreview={() => openLightbox(e.id, "banBekasKiri", e.fotoBan?.bekasKiri, "Ban Kiri (Bekas)", canEdit)}
-                        onPick={(f) => attachPhoto(e.id, "banBekasKiri", f)} />
-                      <BanPageCell label="KODE BAN DEPAN KANAN (BEKAS)" tag={`LB ${e.lb || "-"} · Kode Kanan Bekas`} value={e.fotoBan?.kodeBekasKanan} readOnly={!canCreate}
-                        uploading={isUploading(e.id, "banKodeBekasKanan")} onPreview={() => openLightbox(e.id, "banKodeBekasKanan", e.fotoBan?.kodeBekasKanan, "Kode Ban Kanan (Bekas)", canEdit)}
-                        onPick={(f) => attachPhoto(e.id, "banKodeBekasKanan", f)} />
-                      <BanPageCell label="KODE BAN DEPAN KIRI (BEKAS)" tag={`LB ${e.lb || "-"} · Kode Kiri Bekas`} value={e.fotoBan?.kodeBekasKiri} readOnly={!canCreate}
-                        uploading={isUploading(e.id, "banKodeBekasKiri")} onPreview={() => openLightbox(e.id, "banKodeBekasKiri", e.fotoBan?.kodeBekasKiri, "Kode Ban Kiri (Bekas)", canEdit)}
-                        onPick={(f) => attachPhoto(e.id, "banKodeBekasKiri", f)} />
+                      {b.chunk.map(({ slot, label }) => (
+                        <BanPageCell key={slot} label={label} tag={`LB ${b.entry.lb || "-"} · ${label}`}
+                          value={getBanPhotoValue(b.entry, slot)} readOnly={!canCreate}
+                          uploading={isUploading(b.entry.id, slot)}
+                          onPreview={() => openLightbox(b.entry.id, slot, getBanPhotoValue(b.entry, slot), label, canEdit)}
+                          onPick={(f) => attachPhoto(b.entry.id, slot, f)} />
+                      ))}
                     </div>
                   </div>
-                ))}
-              </>
+                )
+              )
             )}
           </main>
         )}
@@ -1378,13 +1470,13 @@ export default function App() {
         {banModalEntry && (
           <BanPhotoModal
             entry={entries.find((en) => en.id === banModalEntry.id) || banModalEntry}
+            kind={getBanKind(entries.find((en) => en.id === banModalEntry.id) || banModalEntry)}
             canCreate={canCreate}
             canEdit={canEdit}
             isUploading={(slot) => isUploading(banModalEntry.id, slot)}
             onPreview={(slot, label) => {
               const liveEntry = entries.find((en) => en.id === banModalEntry.id) || banModalEntry;
-              const key = BAN_FIELD_KEY[slot];
-              openLightbox(banModalEntry.id, slot, liveEntry.fotoBan?.[key], label, canEdit);
+              openLightbox(banModalEntry.id, slot, getBanPhotoValue(liveEntry, slot), label, canEdit);
             }}
             onPick={(slot, file) => attachPhoto(banModalEntry.id, slot, file)}
             onRemove={(slot) => removePhoto(banModalEntry.id, slot)}
@@ -1399,33 +1491,18 @@ export default function App() {
   );
 }
 
-const BAN_SLOTS = [
-  { slot: "banBaruKanan", label: "Ban Kanan (Baru)" },
-  { slot: "banBaruKiri", label: "Ban Kiri (Baru)" },
-  { slot: "banKodeBaruKanan", label: "Kode Ban Kanan (Baru)" },
-  { slot: "banKodeBaruKiri", label: "Kode Ban Kiri (Baru)" },
-  { slot: "banBekasKanan", label: "Ban Kanan (Bekas)" },
-  { slot: "banBekasKiri", label: "Ban Kiri (Bekas)" },
-  { slot: "banKodeBekasKanan", label: "Kode Ban Kanan (Bekas)" },
-  { slot: "banKodeBekasKiri", label: "Kode Ban Kiri (Bekas)" },
-];
-const BAN_FIELD_KEY = {
-  banBaruKanan: "baruKanan", banBaruKiri: "baruKiri",
-  banKodeBaruKanan: "kodeBaruKanan", banKodeBaruKiri: "kodeBaruKiri",
-  banBekasKanan: "bekasKanan", banBekasKiri: "bekasKiri",
-  banKodeBekasKanan: "kodeBekasKanan", banKodeBekasKiri: "kodeBekasKiri",
-};
+const BAN_KIND_LABEL = { depan: "Ban Depan (8 foto)", belakang: "Ban Belakang (14 foto)" };
 
-function BanPhotoModal({ entry, canCreate, canEdit, onPick, onRemove, onClose, isUploading, onPreview }) {
+function BanPhotoModal({ entry, kind, canCreate, canEdit, onPick, onRemove, onClose, isUploading, onPreview }) {
+  const slots = banSlotsFor(kind);
   return (
     <div className="modal-backdrop no-print" onClick={onClose}>
       <div className="modal-card ban-modal" onClick={(e) => e.stopPropagation()}>
         <h2>Foto ban — LB {entry.lb || "-"} · {entry.namaPart}</h2>
-        <p className="card-desc">8 foto pendukung: ban kanan/kiri baru & bekas, plus kode masing-masing.</p>
+        <p className="card-desc">{BAN_KIND_LABEL[kind] || "Ban"} — terdeteksi dari jumlah = {entry.jumlah || "-"}.</p>
         <div className="ban-modal-grid">
-          {BAN_SLOTS.map(({ slot, label }) => {
-            const key = BAN_FIELD_KEY[slot];
-            const value = entry.fotoBan ? entry.fotoBan[key] : null;
+          {slots.map(({ slot, label }) => {
+            const value = getBanPhotoValue(entry, slot);
             const inputId = `banmodal-${entry.id}-${slot}`;
             const uploading = isUploading(slot);
             return (
