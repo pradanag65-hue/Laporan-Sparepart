@@ -257,6 +257,7 @@ body { background: var(--surface); }
 
 /* ---------- modal kelola 8 foto ban ---------- */
 .ban-modal { max-width: 560px; }
+.ban-kind-toggle { display: flex; gap: 8px; margin: -2px 0 8px; }
 .ban-modal-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin: 4px 0 6px; }
 .ban-modal-cell { display: flex; flex-direction: column; align-items: center; gap: 5px; }
 .ban-modal-cell .slot-label { text-align: center; line-height: 1.3; }
