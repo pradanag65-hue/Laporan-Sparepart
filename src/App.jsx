@@ -213,6 +213,7 @@ export default function App() {
   });
   const colResizeRef = useRef(null);
   const [banModalEntry, setBanModalEntry] = useState(null);
+  const [banKindOverride, setBanKindOverride] = useState(null);
   const [lightbox, setLightbox] = useState(null);
   const [uploadingKeys, setUploadingKeys] = useState(() => new Set());
   const [dateFrom, setDateFrom] = useState("");
@@ -1092,7 +1093,7 @@ export default function App() {
                           </td>
                           <td>
                             {isBanEntry(e) ? (
-                              <button className="btn ghost tiny" onClick={() => setBanModalEntry(e)}>
+                              <button className="btn ghost tiny" onClick={() => { setBanKindOverride(null); setBanModalEntry(e); }}>
                                 <ImageIcon size={13} />
                                 {countBanPhotos(e, getBanKind(e))}/{banSlotsFor(getBanKind(e)).length} foto
                               </button>
@@ -1509,7 +1510,9 @@ export default function App() {
         {banModalEntry && (
           <BanPhotoModal
             entry={entries.find((en) => en.id === banModalEntry.id) || banModalEntry}
-            kind={getBanKind(entries.find((en) => en.id === banModalEntry.id) || banModalEntry)}
+            kind={banKindOverride || getBanKind(entries.find((en) => en.id === banModalEntry.id) || banModalEntry)}
+            detectedKind={getBanKind(entries.find((en) => en.id === banModalEntry.id) || banModalEntry)}
+            onChangeKind={canEdit ? setBanKindOverride : null}
             canCreate={canCreate}
             canEdit={canEdit}
             isUploading={(slot) => isUploading(banModalEntry.id, slot)}
@@ -1532,13 +1535,22 @@ export default function App() {
 
 const BAN_KIND_LABEL = { depan: "Ban Depan (8 foto)", belakang: "Ban Belakang (14 foto)" };
 
-function BanPhotoModal({ entry, kind, canCreate, canEdit, onPick, onRemove, onClose, isUploading, onPreview }) {
+function BanPhotoModal({ entry, kind, detectedKind, onChangeKind, canCreate, canEdit, onPick, onRemove, onClose, isUploading, onPreview }) {
   const slots = banSlotsFor(kind);
   return (
     <div className="modal-backdrop no-print" onClick={onClose}>
       <div className="modal-card ban-modal" onClick={(e) => e.stopPropagation()}>
         <h2>Foto ban — LB {entry.lb || "-"} · {entry.namaPart}</h2>
-        <p className="card-desc">{BAN_KIND_LABEL[kind] || "Ban"} — terdeteksi dari jumlah = {entry.jumlah || "-"}.</p>
+        <p className="card-desc">
+          Jumlah tersimpan = {entry.jumlah || "-"}
+          {kind !== detectedKind ? " (jenis diganti manual di bawah)" : ` → otomatis terdeteksi ${BAN_KIND_LABEL[detectedKind]}`}.
+        </p>
+        {onChangeKind && (
+          <div className="ban-kind-toggle">
+            <button type="button" className={`btn tiny ${kind === "depan" ? "primary" : "ghost"}`} onClick={() => onChangeKind("depan")}>Ban Depan (8 foto)</button>
+            <button type="button" className={`btn tiny ${kind === "belakang" ? "primary" : "ghost"}`} onClick={() => onChangeKind("belakang")}>Ban Belakang (14 foto)</button>
+          </div>
+        )}
         <div className="ban-modal-grid">
           {slots.map(({ slot, label }) => {
             const value = getBanPhotoValue(entry, slot);
