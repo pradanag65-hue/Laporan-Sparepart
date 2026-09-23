@@ -44,6 +44,12 @@ function isBanEntry(e) {
 // Selain itu (nama mengandung "ban" tapi jumlah lain) dianggap depan sebagai default aman.
 function getBanKind(e) {
   if (!isBanEntry(e)) return null;
+  // Kalau sudah ada foto tersimpan di salah satu slot khusus ban belakang,
+  // tetap anggap belakang walau Jumlah kebetulan tidak persis 4 — supaya foto
+  // yang sudah diunggah lewat toggle manual tidak "hilang dari pandangan"
+  // setelah refresh/buka ulang panel.
+  const rear = e.fotoBanRear || {};
+  if (Object.values(rear).some(Boolean)) return "belakang";
   const n = parseFloat(String(e.jumlah).replace(",", "."));
   if (n === 4) return "belakang";
   return "depan";
