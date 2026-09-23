@@ -7,7 +7,7 @@ const AUTH_KEY = "rekap-auth-user";
 // Tempel URL Web App Apps Script kamu (yang diakhiri /exec) di bawah ini.
 // Setelah diisi dan di-deploy, semua orang yang membuka situs ini otomatis
 // tersambung ke Google Sheet — tidak perlu isi URL manual lagi.
-const DEFAULT_API_URL = "https://script.google.com/macros/s/AKfycbwxUJnQUzdI2PLtM9si4n2p3tAjYdNedUyQLwSXmsnwoP1ps2BuFklKe9PBEyEc8imuGA/exec";
+const DEFAULT_API_URL = "https://script.google.com/macros/s/AKfycbza5AHNIdmUpS2f43irbpS9VP8Yolwp6TDJgsYo6j1ySxCuF3ipA-J34ZQHDqAxmbsPGA/exec";
 
 export function getApiUrl() {
   return localStorage.getItem(STORAGE_KEY) || DEFAULT_API_URL;
