@@ -80,12 +80,12 @@ function getSheet_() {
     sheet.appendRow(HEADERS);
     sheet.setFrozenRows(1);
   } else {
-    // Migrasi otomatis: sheet lama (sebelum ada kolom foto ban) cuma punya
-    // 11 kolom header — tambahkan kolom baru tanpa mengganggu data yang ada.
-    const lastCol = sheet.getLastColumn();
-    if (lastCol < HEADERS.length) {
-      sheet.getRange(1, lastCol + 1, 1, HEADERS.length - lastCol).setValues([HEADERS.slice(lastCol)]);
-    }
+    // Selalu samakan baris header dengan skema HEADERS saat ini (bukan cuma
+    // menambah kolom kalau kurang). Data dibaca berdasarkan TEKS header, jadi
+    // kalau nama kolom pernah diganti (mis. saat struktur ban belakang disusun
+    // ulang) tapi baris header lama tidak ikut diperbarui, hasilnya data yang
+    // sudah ada di kolom itu jadi seperti "hilang" saat dibaca kembali.
+    sheet.getRange(1, 1, 1, HEADERS.length).setValues([HEADERS]);
   }
   sheet.getRange("B2:B").setNumberFormat("@");
   return sheet;
@@ -397,7 +397,7 @@ function countAdmins_(sheet) {
 
 // ---- GET: baca data rekap (dipakai semua peran yang sudah login) ----
 function doGet(e) {
-  const action = (e.parameter && e.parameter.action) || "list";
+  const action = (e && e.parameter && e.parameter.action) || "list";
   try {
     if (action === "list") {
       return jsonOut_({ ok: true, entries: sheetToObjects_() });
@@ -411,7 +411,7 @@ function doGet(e) {
 // ---- POST: login serta semua aksi tulis/baca yang butuh otorisasi ----
 function doPost(e) {
   try {
-    const body = JSON.parse(e.postData.contents || "{}");
+    const body = JSON.parse((e && e.postData && e.postData.contents) || "{}");
     const action = body.action;
 
     if (action === "login") {
@@ -449,7 +449,7 @@ function doPost(e) {
         ];
       });
       const startRow = sheet.getLastRow() + 1;
-      sheet.getRange(startRow, 1, matrix.length, HEADERS.length).setValues(matrix);
+      sheet.getRange(startRow, 1, matrix.length, matrix[0].length).setValues(matrix);
       logActivity_(auth.username, auth.role, "addBatch", "Impor " + matrix.length + " baris sekaligus");
       return jsonOut_({ ok: true, ids: ids, count: matrix.length });
     }
