@@ -204,6 +204,7 @@ export default function App() {
   const [tab, setTab] = useState("input");
   const [draft, setDraft] = useState(emptyDraft());
   const [lampiranSearch, setLampiranSearch] = useState("");
+  const [lampiranLB, setLampiranLB] = useState("");
   const [lampiranDateFrom, setLampiranDateFrom] = useState("");
   const [lampiranDateTo, setLampiranDateTo] = useState("");
   const [toast, setToast] = useState(null);
@@ -214,6 +215,7 @@ export default function App() {
   const [backupBusy, setBackupBusy] = useState(false);
   const [importProgress, setImportProgress] = useState(null);
   const [search, setSearch] = useState("");
+  const [searchLB, setSearchLB] = useState("");
   const [colWidths, setColWidths] = useState({
     tanggal: 122, lb: 56, namaPart: 220, kode: 128, jumlah: 56, satuan: 90, mekanik: 130, foto: 150,
   });
@@ -366,14 +368,16 @@ export default function App() {
 
   const lampiranFilteredEntries = useMemo(() => {
     const q = lampiranSearch.trim().toLowerCase();
+    const qLb = lampiranLB.trim().toLowerCase();
     return sortedEntries.filter((e) => {
       if (lampiranDateFrom && e.tanggal < lampiranDateFrom) return false;
       if (lampiranDateTo && e.tanggal > lampiranDateTo) return false;
+      if (qLb && !String(e.lb || "").toLowerCase().includes(qLb)) return false;
       if (!q) return true;
-      return [e.namaPart, e.kodeBarang, e.lb, e.mekanik, e.satuan, formatTanggalID(e.tanggal)]
+      return [e.namaPart, e.kodeBarang, e.mekanik, e.satuan, formatTanggalID(e.tanggal)]
         .join(" ").toLowerCase().includes(q);
     });
-  }, [sortedEntries, lampiranSearch, lampiranDateFrom, lampiranDateTo]);
+  }, [sortedEntries, lampiranSearch, lampiranLB, lampiranDateFrom, lampiranDateTo]);
 
   // Susun jadi daftar "blok" cetak: satu blok untuk semua part biasa per tanggal,
   // dan satu blok per halaman untuk tiap entri ban (dipecah maks. 8 foto/halaman).
@@ -398,14 +402,16 @@ export default function App() {
 
   const filteredEntries = useMemo(() => {
     const q = search.trim().toLowerCase();
+    const qLb = searchLB.trim().toLowerCase();
     return sortedEntries.filter((e) => {
       if (dateFrom && e.tanggal < dateFrom) return false;
       if (dateTo && e.tanggal > dateTo) return false;
+      if (qLb && !String(e.lb || "").toLowerCase().includes(qLb)) return false;
       if (!q) return true;
-      return [e.namaPart, e.kodeBarang, e.lb, e.mekanik, e.satuan, formatTanggalID(e.tanggal)]
+      return [e.namaPart, e.kodeBarang, e.mekanik, e.satuan, formatTanggalID(e.tanggal)]
         .join(" ").toLowerCase().includes(q);
     });
-  }, [sortedEntries, search, dateFrom, dateTo]);
+  }, [sortedEntries, search, searchLB, dateFrom, dateTo]);
 
   const namaPartOptions = useMemo(() => Array.from(new Set(entries.map((e) => e.namaPart).filter(Boolean))).sort(), [entries]);
   const kodeBarangOptions = useMemo(() => Array.from(new Set(entries.map((e) => e.kodeBarang).filter(Boolean))).sort(), [entries]);
@@ -998,8 +1004,13 @@ export default function App() {
                 <div className="table-toolbar">
                   <div className="search-wrap">
                     <Search size={14} className="search-icon" />
-                    <input type="text" placeholder="Cari nama part, kode, LB, atau mekanik…" value={search} onChange={(e) => setSearch(e.target.value)} />
+                    <input type="text" placeholder="Cari nama part, kode, atau mekanik…" value={search} onChange={(e) => setSearch(e.target.value)} />
                     {search && <button className="search-clear" onClick={() => setSearch("")} title="Bersihkan pencarian"><X size={13} /></button>}
+                  </div>
+                  <div className="search-wrap search-lb">
+                    <Tag size={14} className="search-icon" />
+                    <input type="text" placeholder="Cari LB…" value={searchLB} onChange={(e) => setSearchLB(e.target.value)} />
+                    {searchLB && <button className="search-clear" onClick={() => setSearchLB("")} title="Bersihkan pencarian LB"><X size={13} /></button>}
                   </div>
                   <div className="date-range">
                     <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} title="Dari tanggal" />
@@ -1148,8 +1159,13 @@ export default function App() {
                 <div className="lampiran-controls">
                   <div className="search-wrap">
                     <Search size={14} className="search-icon" />
-                    <input type="text" placeholder="Cari nama part, kode, LB, mekanik…" value={lampiranSearch} onChange={(e) => setLampiranSearch(e.target.value)} />
+                    <input type="text" placeholder="Cari nama part, kode, mekanik…" value={lampiranSearch} onChange={(e) => setLampiranSearch(e.target.value)} />
                     {lampiranSearch && <button className="search-clear" onClick={() => setLampiranSearch("")} title="Bersihkan pencarian"><X size={13} /></button>}
+                  </div>
+                  <div className="search-wrap search-lb">
+                    <Tag size={14} className="search-icon" />
+                    <input type="text" placeholder="Cari LB…" value={lampiranLB} onChange={(e) => setLampiranLB(e.target.value)} />
+                    {lampiranLB && <button className="search-clear" onClick={() => setLampiranLB("")} title="Bersihkan pencarian LB"><X size={13} /></button>}
                   </div>
                   <div className="date-range">
                     <input type="date" value={lampiranDateFrom} onChange={(e) => setLampiranDateFrom(e.target.value)} title="Dari tanggal" />
