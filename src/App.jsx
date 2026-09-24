@@ -388,7 +388,12 @@ export default function App() {
       const dayEntries = lampiranFilteredEntries.filter((e) => e.tanggal === date);
       const normal = dayEntries.filter((e) => !isBanEntry(e));
       const bans = dayEntries.filter((e) => isBanEntry(e));
-      if (normal.length) blocks.push({ type: "normal", date, entries: normal });
+      if (normal.length) {
+        const normalChunks = chunkSlots(normal, 4); // 4 entri x 2 foto = 8 foto/halaman
+        normalChunks.forEach((chunk, ci) => {
+          blocks.push({ type: "normal", date, entries: chunk, page: ci + 1, totalPages: normalChunks.length });
+        });
+      }
       bans.forEach((entry) => {
         const kind = getBanKind(entry);
         const chunks = chunkSlots(banSlotsFor(kind), 8);
@@ -1183,10 +1188,10 @@ export default function App() {
             ) : (
               lampiranBlocks.map((b, i) =>
                 b.type === "normal" ? (
-                  <div className={`print-area ${i > 0 ? "force-break" : ""}`} key={`normal-${b.date}`}>
+                  <div className={`print-area doc-page ${i > 0 ? "force-break" : ""}`} key={`normal-${b.date}-${b.page}`}>
                     <div className="sheet-head">
                       <h3>LAMPIRAN FOTO SPARE PART BEKAS</h3>
-                      <p>{formatTanggalID(b.date)}</p>
+                      <p>{formatTanggalID(b.date)}{b.totalPages > 1 ? ` · Halaman ${b.page}/${b.totalPages}` : ""}</p>
                     </div>
                     <div className="grid-columns-head">
                       <span>Barang (kondisi)</span>
