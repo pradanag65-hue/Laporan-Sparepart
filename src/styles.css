@@ -211,7 +211,7 @@ body { background: var(--surface); }
 .search-wrap input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(47,111,237,0.13); background: #fff; }
 .search-clear { position: absolute; right: 8px; width: 18px; height: 18px; border-radius: 50%; background: var(--surface-2); border: none; color: var(--muted); display: flex; align-items: center; justify-content: center; cursor: pointer; }
 .search-clear:hover { background: var(--line); }
-
+.search-wrap.search-lb input { width: 110px; }
 .date-range { display: flex; align-items: center; gap: 6px; }
 .date-range input[type="date"] {
   font-family: inherit; font-size: 12px; padding: 7px 9px;
@@ -450,4 +450,5 @@ table input[type="date"]:hover { border-color: var(--line); background: #fff; }
   .table-toolbar { width: 100%; }
   .search-wrap { flex: 1; }
   .search-wrap input { width: 100%; }
+  .search-wrap.search-lb input { width: 100%; }
 }
