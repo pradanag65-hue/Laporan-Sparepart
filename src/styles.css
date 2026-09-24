@@ -235,15 +235,27 @@ body { background: var(--surface); }
 .ban-page-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .ban-page-grid .ban-cell .photo-frame { aspect-ratio: 4 / 3; }
 @media print {
-  @page { size: 215.9mm 330.2mm; margin: 10mm; } /* F4 / Folio, supaya 8 foto ban muat 1 halaman */
+  @page { size: 215.9mm 330.2mm; margin: 10mm; } /* F4 / Folio, supaya 8 foto muat 1 halaman */
   .force-break { break-before: page; page-break-before: always; }
 
-  /* Paksa tinggi grid pas 1 halaman (bukan andalkan aspect-ratio gambar,
-     yang gampang meleset dan bikin baris ke-4 kepental ke halaman lain). */
-  .ban-page { display: flex; flex-direction: column; min-height: calc(330.2mm - 20mm); }
-  .ban-page .sheet-head { flex: 0 0 auto; margin-bottom: 6px; }
-  .ban-page .sheet-head h3 { font-size: 12.5px; }
-  .ban-page .sheet-head p { font-size: 10.5px; }
+  /* Paksa tinggi tiap halaman pas 1 lembar (bukan andalkan aspect-ratio gambar,
+     yang gampang meleset dan bikin baris terakhir kepental ke halaman lain).
+     Berlaku sama untuk halaman lampiran biasa (.doc-page) maupun ban (.ban-page). */
+  .doc-page, .ban-page { display: flex; flex-direction: column; min-height: calc(330.2mm - 20mm); }
+  .doc-page .sheet-head, .ban-page .sheet-head { flex: 0 0 auto; margin-bottom: 6px; }
+  .doc-page .sheet-head h3, .ban-page .sheet-head h3 { font-size: 12.5px; }
+  .doc-page .sheet-head p, .ban-page .sheet-head p { font-size: 10.5px; }
+  .doc-page .grid-columns-head { flex: 0 0 auto; }
+
+  /* Lampiran biasa: 4 baris (8 foto) mengisi rata sisa tinggi halaman. */
+  .doc-page .photo-rows { flex: 1 1 auto; display: flex; flex-direction: column; gap: 6px; }
+  .doc-page .photo-row { flex: 1 1 0; min-height: 0; gap: 6px; }
+  .doc-page .photo-row .photo-card { display: flex; flex-direction: column; min-height: 0; }
+  .doc-page .photo-row .photo-card .photo-frame { flex: 1 1 auto; aspect-ratio: unset; min-height: 0; }
+  .doc-page .photo-row .photo-card figcaption { flex: 0 0 auto; padding: 3px 8px; }
+  .doc-page .photo-row .photo-card figcaption strong { font-size: 10px; }
+
+  /* Ban: grid 2 kolom x N baris mengisi rata sisa tinggi halaman. */
   .ban-page-grid {
     flex: 1 1 auto;
     grid-template-rows: repeat(var(--rows, 4), 1fr);
@@ -394,7 +406,7 @@ table input[type="date"]:hover { border-color: var(--line); background: #fff; }
 .photo-missing { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; }
 .photo-missing label { display: flex; flex-direction: column; align-items: center; gap: 5px; color: var(--muted); font-size: 11px; cursor: pointer; }
 .photo-missing-label { display: flex; flex-direction: column; align-items: center; gap: 5px; color: var(--muted); font-size: 11px; }
-.photo-tag { position: absolute; left: 6px; top: 6px; background: rgba(10, 28, 64, 0.78); color: #fff; font-size: 9.5px; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; padding: 2px 6px; border-radius: 5px; max-width: calc(100% - 12px); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.photo-tag { position: absolute; left: 6px; top: 6px; background: rgba(8, 22, 52, 0.92); color: #fff; font-weight: 700; font-size: 9.5px; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; padding: 3px 7px; border-radius: 5px; max-width: calc(100% - 12px); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; box-shadow: 0 0 0 1px rgba(255,255,255,0.5); }
 .photo-card figcaption { padding: 8px 10px; text-align: center; border-top: 1px solid var(--line); }
 .photo-card figcaption strong { display: block; font-size: 11.5px; letter-spacing: 0.01em; color: var(--ink); }
 .photo-card figcaption span { display: block; font-size: 10px; color: var(--muted); margin-top: 1px; }
@@ -414,6 +426,7 @@ table input[type="date"]:hover { border-color: var(--line); background: #fff; }
 /* ---------- print ---------- */
 .print-area { display: block; }
 @media print {
+  * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; color-adjust: exact !important; }
   .no-print { display: none !important; }
   .app-shell { display: block; background: #fff; }
   .main-area::before { display: none; }
