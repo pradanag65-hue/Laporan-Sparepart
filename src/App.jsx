@@ -886,7 +886,7 @@ export default function App() {
           <div className="rail-logo"><Leaf size={28} strokeWidth={1.6} /></div>
           <div className="side-brand-text">
             <h1>Rekap Barang Bekas</h1>
-            <p>Dishub DIY - Trans Jogja</p>
+            <p>PT AMI - TRANSJOGJA </p>
           </div>
         </div>
 
@@ -968,7 +968,7 @@ export default function App() {
 
           <div className="sidebar-footer">
             <Bus size={44} strokeWidth={1.3} />
-            <p>Bersama<br />Untuk Transportasi<br />Yang Lebih Baik</p>
+            <p>TRANSJOGJA<br />PENGHUBUNG<br />SETIAP CERITA</p>
           </div>
         </div>
       </aside>
