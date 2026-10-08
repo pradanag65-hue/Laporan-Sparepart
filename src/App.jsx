@@ -5,7 +5,7 @@ import {
   RotateCcw, ChevronDown, Settings, Link2, CheckCircle2, Images,
   Bell, Calendar, Tag, Wrench, Barcode, Hash, Box, User, Bus,
   LogOut, Lock, Eye, Search, BarChart3, History, Users, Mail,
-  UserPlus, ShieldCheck, KeyRound,
+  UserPlus, ShieldCheck, KeyRound, FileText, ChevronsRight,
 } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
 import * as XLSX from "xlsx";
@@ -159,7 +159,7 @@ function normalizeTanggal(val) {
   if (dmy) {
     let [, dd, mm, yy] = dmy;
     if (yy.length === 2) yy = "20" + yy;
-    return `${yy}-${mm.padStart(2, "0")}-${dd.padStart(2, "0")}`;
+    return `$yy-${mm.padStart(2, "0")}-${dd.padStart(2, "0")}`;
   }
   const parsed = new Date(s);
   if (!isNaN(parsed.getTime())) return parsed.toISOString().slice(0, 10);
@@ -227,6 +227,24 @@ export default function App() {
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [showSettings, setShowSettings] = useState(false);
+  const [navOpen, setNavOpen] = useState(() => {
+    try { return localStorage.getItem("navOpen") === "1"; } catch { return false; }
+  });
+  const [tip, setTip] = useState(null);
+  const showTip = (e, text) => {
+    if (navOpen) return;
+    const r = e.currentTarget.getBoundingClientRect();
+    setTip({ text, top: r.top + r.height / 2, left: r.right + 14 });
+  };
+  const hideTip = () => setTip(null);
+  const toggleNav = () => {
+    setTip(null);
+    setNavOpen((v) => {
+      const n = !v;
+      try { localStorage.setItem("navOpen", n ? "1" : "0"); } catch {}
+      return n;
+    });
+  };
   const importRef = useRef(null);
 
   // admin-only data
@@ -316,7 +334,7 @@ export default function App() {
       { id: "input", label: "Input & Data", icon: ClipboardList },
       { id: "lampiran", label: "Lampiran Foto", icon: ImageIcon },
       { id: "dashboard", label: "Dashboard", icon: BarChart3 },
-      { id: "io", label: "Impor & Ekspor", icon: FileSpreadsheet },
+      { id: "io", label: "Impor & Ekspor", icon: FileText },
     ];
     if (role === "admin") {
       base.push({ id: "activity", label: "Log Aktivitas", icon: History });
@@ -501,7 +519,7 @@ export default function App() {
 
   async function attachPhoto(id, slot, file) {
     if (!file) return;
-    const uploadKey = `${id}:${slot}`;
+    const uploadKey = `$id:${slot}`;
     setUploadingKeys((prev) => new Set(prev).add(uploadKey));
     setBusy(true);
     try {
@@ -565,7 +583,7 @@ export default function App() {
     window.addEventListener("mouseup", onColResizeUp);
   }
 
-  function isUploading(id, slot) {    return uploadingKeys.has(`${id}:${slot}`);
+  function isUploading(id, slot) {    return uploadingKeys.has(`$id:${slot}`);
   }
 
   function openLightbox(id, slot, url, label, allowRemove) {
@@ -618,7 +636,7 @@ export default function App() {
         console.error(err);
         handleApiError(
           err,
-          `Impor terhenti setelah ${insertedTotal} dari ${fieldsList.length} baris (baris ke-${insertedTotal + 1} dan seterusnya belum masuk)`
+          `Impor terhenti setelah ${insertedTotal} dari $fieldsList.lengthbaris(bariske-${insertedTotal + 1} dan seterusnya belum masuk)`
         );
       }
     } catch (err) {
@@ -668,7 +686,7 @@ export default function App() {
     const a = document.createElement("a");
     a.href = url;
     const rangeTag = dateFrom || dateTo ? `_${dateFrom || "awal"}_sd_${dateTo || "akhir"}` : "";
-    a.download = `rekap-barang-bekas${rangeTag}-${todayISO()}.xlsx`;
+    a.download = `rekap-barang-bekas$rangeTag-${todayISO()}.xlsx`;
     a.click();
     URL.revokeObjectURL(url);
     notify("Rekap data diunduh.");
@@ -860,24 +878,38 @@ export default function App() {
 
   return (
     <div className="app-shell">
-      <aside className="sidebar no-print">
-        <div className="sidebar-brand">
-          <div className="brand-mark"><Leaf size={19} strokeWidth={2.2} /></div>
-          <div>
+      <aside
+        className={`sidebar no-print ${navOpen ? "open" : ""}`}
+        onClick={(e) => { if (e.target === e.currentTarget || e.target.dataset.toggle) toggleNav(); }}
+      >
+        <div className="side-brand">
+          <div className="rail-logo"><Leaf size={28} strokeWidth={1.6} /></div>
+          <div className="side-brand-text">
             <h1>Rekap Barang Bekas</h1>
-            <p>Dinas Perhubungan DIY - Trans Jogja</p>
+            <p>Dishub DIY - Trans Jogja</p>
           </div>
         </div>
 
         <nav className="side-nav">
           {navItems.map(({ id, label, icon: Icon }) => (
-            <button key={id} className={`side-nav-item ${tab === id ? "active" : ""}`} onClick={() => setTab(id)}>
-              <Icon size={17} />{label}
+            <button
+              key={id}
+              className={`side-item ${tab === id ? "active" : ""}`}
+              aria-label={label}
+              onClick={() => {
+                setTab(id);
+                if (navOpen && window.innerWidth <= 720) toggleNav();
+              }}
+              onMouseEnter={(e) => showTip(e, label)}
+              onMouseLeave={hideTip}
+              onFocus={(e) => showTip(e, label)}
+              onBlur={hideTip}
+            >
+              <span className="side-ico"><Icon size={21} strokeWidth={1.8} /></span>
+              <span className="side-label">{label}</span>
             </button>
           ))}
         </nav>
-
-        <div className="side-divider" />
 
         <div className="side-stats">
           <div className="side-stat">
@@ -894,24 +926,56 @@ export default function App() {
           </div>
         </div>
 
-        <button className="side-settings-btn" onClick={() => setShowSettings(true)}>
-          <Settings size={15} />Pengaturan
-        </button>
+        <div className="side-spacer" data-toggle="1" />
 
-        <div className="side-user">
-          <div className="side-user-avatar">{authUser.username.slice(0, 2).toUpperCase()}</div>
-          <div className="side-user-info">
-            <strong>{authUser.username}</strong>
-            <span>{ROLE_LABEL[role] || role}</span>
+        <div className="side-bottom">
+          <button
+            className="side-item"
+            aria-label="Pengaturan"
+            onClick={() => setShowSettings(true)}
+            onMouseEnter={(e) => showTip(e, "Pengaturan")}
+            onMouseLeave={hideTip}
+          >
+            <span className="side-ico"><Settings size={21} strokeWidth={1.8} /></span>
+            <span className="side-label">Pengaturan</span>
+          </button>
+
+          <div className="side-divider" />
+
+          <div
+            className="side-user"
+            onMouseEnter={(e) => showTip(e, authUser.username)}
+            onMouseLeave={hideTip}
+          >
+            <div className="side-user-avatar">{authUser.username.slice(0, 2).toUpperCase()}</div>
+            <div className="side-user-info">
+              <strong>{authUser.username}</strong>
+              <span>{ROLE_LABEL[role] || role}</span>
+            </div>
+            <button className="side-logout-btn" onClick={handleLogout} title="Keluar"><LogOut size={16} /></button>
           </div>
-          <button className="side-logout-btn" onClick={handleLogout} title="Keluar"><LogOut size={15} /></button>
-        </div>
 
-        <div className="sidebar-footer">
-          <Bus size={54} strokeWidth={1.3} />
-          <p>Bersama<br />Untuk Transportasi<br />Yang Lebih Baik</p>
+          <button
+            className="side-item side-toggle"
+            aria-label={navOpen ? "Ciutkan sidebar" : "Lebarkan sidebar"}
+            onClick={toggleNav}
+            onMouseEnter={(e) => showTip(e, "Lebarkan")}
+            onMouseLeave={hideTip}
+          >
+            <span className="side-ico"><ChevronsRight size={21} strokeWidth={1.8} /></span>
+            <span className="side-label">Ciutkan</span>
+          </button>
+
+          <div className="sidebar-footer">
+            <Bus size={44} strokeWidth={1.3} />
+            <p>Bersama<br />Untuk Transportasi<br />Yang Lebih Baik</p>
+          </div>
         </div>
       </aside>
+
+      {tip && !navOpen && (
+        <div className="side-tip" style={{ top: tip.top, left: tip.left }}>{tip.text}</div>
+      )}
 
       <div className="main-area">
         <header className="main-topbar no-print">
@@ -1191,7 +1255,7 @@ export default function App() {
                   <div className={`print-area doc-page ${i > 0 ? "force-break" : ""}`} key={`normal-${b.date}-${b.page}`}>
                     <div className="sheet-head">
                       <h3>LAMPIRAN FOTO SPARE PART BEKAS</h3>
-                      <p>{formatTanggalID(b.date)}{b.totalPages > 1 ? ` · Halaman ${b.page}/${b.totalPages}` : ""}</p>
+                      <p>{formatTanggalID(b.date)}{b.totalPages > 1 ? ` · Halaman $b.page/${b.totalPages}` : ""}</p>
                     </div>
                     <div className="grid-columns-head">
                       <span>Barang (kondisi)</span>
@@ -1221,7 +1285,7 @@ export default function App() {
                       </h3>
                       <p>
                         BUS LAMBUNG {b.entry.lb || "-"} · {formatTanggalID(b.date)}
-                        {b.totalPages > 1 ? ` · Halaman ${b.page}/${b.totalPages}` : ""}
+                        {b.totalPages > 1 ? ` · Halaman $b.page/${b.totalPages}` : ""}
                       </p>
                     </div>
                     <div className="ban-page-grid">
@@ -1255,11 +1319,11 @@ export default function App() {
                   <div className="chart-box">
                     <ResponsiveContainer width="100%" height={220}>
                       <BarChart data={chartByMonth}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="#e1e7f5" vertical={false} />
+                        <CartesianGrid strokeDasharray="3 3" stroke="#ece8dc" vertical={false} />
                         <XAxis dataKey="name" tick={{ fontSize: 12, fill: "#64708c" }} axisLine={{ stroke: "#e1e7f5" }} tickLine={false} />
                         <YAxis allowDecimals={false} tick={{ fontSize: 12, fill: "#64708c" }} axisLine={false} tickLine={false} width={28} />
-                        <Tooltip contentStyle={{ borderRadius: 10, border: "1px solid #e1e7f5", fontSize: 12.5 }} cursor={{ fill: "#eef1fb" }} />
-                        <Bar dataKey="jumlah" fill="#2f6fed" radius={[6, 6, 0, 0]} />
+                        <Tooltip contentStyle={{ borderRadius: 10, border: "1px solid #e1e7f5", fontSize: 12.5 }} cursor={{ fill: "#fbf3e0" }} />
+                        <Bar dataKey="jumlah" fill="#b8861f" radius={[6, 6, 0, 0]} />
                       </BarChart>
                     </ResponsiveContainer>
                   </div>
@@ -1581,7 +1645,7 @@ function BanPhotoModal({ entry, kind, detectedKind, onChangeKind, canCreate, can
         <div className="ban-modal-grid">
           {slots.map(({ slot, label }) => {
             const value = getBanPhotoValue(entry, slot);
-            const inputId = `banmodal-${entry.id}-${slot}`;
+            const inputId = `banmodal-$entry.id-${slot}`;
             const uploading = isUploading(slot);
             return (
               <div className="ban-modal-cell" key={slot}>
