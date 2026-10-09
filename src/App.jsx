@@ -325,6 +325,30 @@ export default function App() {
     setLoginForm({ username: "", password: "" });
   }
 
+  // Auto logout kalau tidak ada aktivitas 15 menit
+  useEffect(() => {
+    if (!authUser) return undefined;
+    const IDLE_LIMIT_MS = 15 * 60 * 1000;
+    let last = Date.now();
+    const bump = () => { last = Date.now(); };
+    const events = ["mousemove", "mousedown", "keydown", "scroll", "wheel", "touchstart", "click"];
+    events.forEach((ev) => window.addEventListener(ev, bump, { passive: true }));
+    const check = () => {
+      if (Date.now() - last < IDLE_LIMIT_MS) return;
+      clearAuthUser();
+      setAuthUserState(null);
+      setLoginForm({ username: "", password: "" });
+      setLoginError("Sesi berakhir karena tidak ada aktivitas selama 15 menit. Silakan login lagi.");
+    };
+    const timer = window.setInterval(check, 15000);
+    document.addEventListener("visibilitychange", check);
+    return () => {
+      events.forEach((ev) => window.removeEventListener(ev, bump));
+      window.clearInterval(timer);
+      document.removeEventListener("visibilitychange", check);
+    };
+  }, [authUser]);
+
   const role = authUser ? authUser.role : null;
   const canCreate = role === "admin" || role === "input";
   const canEdit = role === "admin";
@@ -886,7 +910,7 @@ export default function App() {
           <div className="rail-logo"><Leaf size={28} strokeWidth={1.6} /></div>
           <div className="side-brand-text">
             <h1>Rekap Barang Bekas</h1>
-            <p>PT AMI - TRANSJOGJA </p>
+            <p>Dishub DIY - Trans Jogja</p>
           </div>
         </div>
 
@@ -968,7 +992,7 @@ export default function App() {
 
           <div className="sidebar-footer">
             <Bus size={44} strokeWidth={1.3} />
-            <p>TRANSJOGJA<br />PENGHUBUNG<br />SETIAP CERITA</p>
+            <p>Bersama<br />Untuk Transportasi<br />Yang Lebih Baik</p>
           </div>
         </div>
       </aside>
@@ -991,7 +1015,7 @@ export default function App() {
           <div className="hero-blobs" aria-hidden="true"><span className="blob b1" /><span className="blob b2" /><span className="blob b3" /></div>
           <p className="hero-kicker">Selamat Datang</p>
           <h2>{activeNav.label}</h2>
-          <p className="hero-sub">PT AMI - TRANSJOGJA</p>
+          <p className="hero-sub">Dinas Perhubungan DIY - Trans Jogja</p>
         </div>
 
         {tab === "input" && (
@@ -1587,6 +1611,8 @@ export default function App() {
             </section>
           </main>
         )}
+
+        <footer className="app-credit no-print">Created by Gilang</footer>
 
         {busy && <div className="busy-overlay no-print"><Loader2 className="spin" size={20} /></div>}
         {toast && (
